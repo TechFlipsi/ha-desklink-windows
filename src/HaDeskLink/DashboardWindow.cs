@@ -216,7 +216,6 @@ public class DashboardWindow : Form
         sb.AppendLine("})();");
         return sb.ToString();
     }
-    }
 
     private void ShowError(string message)
     {
