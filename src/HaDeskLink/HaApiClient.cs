@@ -408,6 +408,6 @@ public class HaApiClient
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "3.1.1";
+        return "4.0.0";
     }
 }
