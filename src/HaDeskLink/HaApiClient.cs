@@ -38,7 +38,7 @@ public class HaApiClient
         ? $"{_haUrl}/api/webhook/{_webhookId}"
         : _cloudUrl;
 
-    public HaApiClient(string configDir, bool verifySsl = false)
+    public HaApiClient(string configDir, bool verifySsl = true)
     {
         _configDir = configDir;
         var handler = new HttpClientHandler
@@ -140,7 +140,12 @@ public class HaApiClient
             _webhookId = data.RootElement.GetProperty("webhook_id").GetString() ?? "";
             _cloudUrl = data.RootElement.TryGetProperty("cloud_url", out var cu) ? cu.GetString() ?? "" : "";
             var tokenPath = Path.Combine(_configDir, "token.txt");
-            if (File.Exists(tokenPath)) _token = File.ReadAllText(tokenPath).Trim();
+            // Token is now loaded from encrypted Config, not from token.txt
+            // Legacy migration: if token.txt still exists, remove it
+            if (File.Exists(tokenPath))
+            {
+                try { File.Delete(tokenPath); } catch { }
+            }
             return !string.IsNullOrEmpty(_webhookId);
         }
         catch { return false; }
@@ -351,7 +356,13 @@ public class HaApiClient
         var data = new { ha_url = haUrl, webhook_id = _webhookId, cloud_url = _cloudUrl, device_id = _deviceId };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(Path.Combine(_configDir, "registration.json"), json);
-        File.WriteAllText(Path.Combine(_configDir, "token.txt"), token);
+        // Token is now stored via encrypted Config only, never in plaintext
+        // Delete legacy token.txt if it exists
+        var tokenPath = Path.Combine(_configDir, "token.txt");
+        if (File.Exists(tokenPath))
+        {
+            try { File.Delete(tokenPath); } catch { }
+        }
     }
 
     private string? LoadDeviceId()
@@ -397,6 +408,6 @@ public class HaApiClient
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "3.0.18";
+        return "3.0.20";
     }
 }

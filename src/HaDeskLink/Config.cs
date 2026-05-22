@@ -32,7 +32,7 @@ public class Config
 
     public string HaUrl { get; set; } = "";
     public string HaToken { get; set; } = "";
-    public bool VerifySsl { get; set; } = false;
+    public bool VerifySsl { get; set; } = true;
     public bool Autostart { get; set; } = true;
     public int SensorInterval { get; set; } = 30;
     /// <summary>

@@ -81,7 +81,7 @@ public class DeskLinkApp
         // Start WebSocket connection for push notifications
         var webhookId = _api.GetWebhookId();
         var wsClient = new HaWebSocketClient(_config.HaUrl, _config.HaToken, webhookId, _trayIcon,
-            cmd => CommandHandler.Execute(cmd));
+            cmd => CommandHandler.Execute(cmd), verifySsl: _config.VerifySsl);
         _wsClient = wsClient;
 
         try
@@ -405,7 +405,7 @@ public class DeskLinkApp
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "3.0.18";
+        return "3.0.20";
     }
 
     private List<QuickAction> LoadQuickActions()
