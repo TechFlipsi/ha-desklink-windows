@@ -35,6 +35,7 @@ public class HaWebSocketClient : IDisposable
     private readonly string _webhookId;
     private readonly NotifyIcon? _trayIcon;
     private readonly Action<string>? _onCommand;
+    private readonly bool _verifySsl;
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private bool _disposed;
@@ -52,19 +53,19 @@ public class HaWebSocketClient : IDisposable
     /// </summary>
     public bool LoginBlocked => _loginBlocked;
 
-    public HaWebSocketClient(string haUrl, string token, string webhookId, NotifyIcon? trayIcon, Action<string>? onCommand = null)
+    public HaWebSocketClient(string haUrl, string token, string webhookId, NotifyIcon? trayIcon, Action<string>? onCommand = null, bool verifySsl = true)
     {
         _haUrl = haUrl.TrimEnd('/');
         _token = token;
         _webhookId = webhookId;
         _trayIcon = trayIcon;
         _onCommand = onCommand;
+        _verifySsl = verifySsl;
     }
 
     public async Task ConnectAsync()
     {
         _cts = new CancellationTokenSource();
-        var wsUrl = _haUrl.Replace("https://", "wss://").Replace("http://", "ws://") + "/api/websocket";
 
         while (!_cts.Token.IsCancellationRequested)
         {
@@ -79,9 +80,16 @@ public class HaWebSocketClient : IDisposable
             {
                 _ws = new ClientWebSocket();
 
-                // Ignore SSL errors for self-signed certs
-                _ws.Options.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+                // Only bypass SSL validation when explicitly disabled
+                if (!_verifySsl)
+                {
+                    _ws.Options.RemoteCertificateValidationCallback = (sender, cert, chain, errors) => true;
+                }
 
+                // Build WebSocket URL properly using Uri class
+                var uri = new Uri(_haUrl);
+                var wsScheme = uri.Scheme == "https" ? "wss" : "ws";
+                var wsUrl = $"{wsScheme}://{uri.Authority}/api/websocket";
                 await _ws.ConnectAsync(new Uri(wsUrl), _cts.Token);
 
                 // Step 1: Receive auth_required
@@ -149,7 +157,7 @@ public class HaWebSocketClient : IDisposable
     {
         if (_ws?.State != WebSocketState.Open) return null;
 
-        var buffer = new byte[16384];
+        var buffer = new byte[65536];
         var sb = new StringBuilder();
         WebSocketReceiveResult result;
 
