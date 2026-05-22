@@ -63,7 +63,7 @@ public class DeskLinkApp
         }
         catch (Exception ex)
         {
-            File.WriteAllText(Program.LogFile(), $"[SensorManager] LibreHardwareMonitor failed: {ex}");
+            File.WriteAllText(Program.LogFile(), $"[SensorManager] Failed to initialize sensor manager: {ex}");
             _sensors = null;
         }
 

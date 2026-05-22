@@ -13,54 +13,34 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using LibreHardwareMonitor.Hardware;
 
 namespace HaDeskLink;
 
 /// <summary>
-/// Collects system sensor data using LibreHardwareMonitor for temperatures
-/// and WMI/DriveInfo for everything else.
+/// Collects system sensor data using WMI, PerformanceCounter, and subprocess
+/// calls — no driver or LibreHardwareMonitor dependency.
 /// </summary>
 public class SensorManager : IDisposable
 {
-    private readonly Computer _computer;
     private bool _disposed;
 
     public SensorManager()
     {
-        _computer = new Computer
-        {
-            IsCpuEnabled = true,
-            IsGpuEnabled = true,
-            IsMemoryEnabled = true,
-            IsStorageEnabled = true,
-            IsBatteryEnabled = true,
-            IsControllerEnabled = true, // SuperIO for motherboard fans
-        };
-        try { _computer.Open(); }
-        catch { /* LibreHardwareMonitor native DLLs may fail in single-file mode */ }
+        // No hardware initialisation needed — everything is queried on demand.
     }
 
     public List<SensorData> CollectAll()
     {
         var sensors = new List<SensorData>();
 
-        try { _computer.Accept(new UpdateVisitor()); }
-        catch { }
-
-        // Force update all hardware for fresh sensor readings
-        foreach (IHardware hardware in _computer.Hardware)
-        {
-            try { hardware.Update(); }
-            catch { }
-        }
-
         sensors.AddRange(GetCpuSensors());
+        sensors.AddRange(GetCpuClockSensors());
         sensors.AddRange(GetGpuSensors());
         sensors.AddRange(GetMemorySensors());
         sensors.AddRange(GetDiskSensors());
@@ -83,8 +63,7 @@ public class SensorManager : IDisposable
         var wifiSignal = GetWifiSignal();
         if (wifiSignal != null) sensors.Add(wifiSignal);
 
-        // CPU clock speed and fan speeds from LibreHardwareMonitor
-        sensors.AddRange(GetCpuClockSensors());
+        // Fan sensors (WMI Win32_Fan + GPU fan via nvidia-smi)
         sensors.AddRange(GetFanSensors());
 
         // Fullscreen sensor
@@ -107,85 +86,404 @@ public class SensorManager : IDisposable
         return sensors;
     }
 
-    private List<SensorData> GetCpuSensors()
+    // ─────────────────────────────────────────────────────────────────
+    //  CPU sensors (WMI + PerformanceCounter — no LHM)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetCpuSensors()
     {
         var result = new List<SensorData>();
-        var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-        if (cpu == null) return result;
 
-        foreach (var sensor in cpu.Sensors)
+        // --- CPU temperature via WMI MSAcpi_ThermalZoneTemperature ---
+        // Requires elevation on some systems; fails gracefully.
+        try
         {
-            if (sensor.Value == null) continue;
-
-            if (sensor.SensorType == SensorType.Load && sensor.Name.Contains("Total"))
+            using var searcher = new ManagementObjectSearcher(
+                @"root\WMI",
+                "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature");
+            foreach (ManagementObject obj in searcher.Get())
             {
-                result.Add(new SensorData("cpu_percent", "CPU Usage",
-                    Math.Round(sensor.Value.Value, 1), "%",
-                    icon: "mdi:cpu-64-bit", stateClass: "measurement"));
-            }
-            else if (sensor.SensorType == SensorType.Temperature &&
-                     sensor.Name.Contains("Core"))
-            {
-                // Only use Core temps (not Package/TCTL which reads high on AMD)
-                if (!result.Any(s => s.UniqueId == "cpu_temperature"))
-                {
-                    result.Add(new SensorData("cpu_temperature", "CPU Temperature",
-                        Math.Round(sensor.Value.Value, 1), "\u00b0C",
-                        icon: "mdi:thermometer", stateClass: "measurement"));
-                }
+                var raw = Convert.ToDouble(obj["CurrentTemperature"]);
+                // Raw value is tenths of Kelvin → Celsius
+                var celsius = Math.Round((raw / 10.0) - 273.15, 1);
+                result.Add(new SensorData("cpu_temperature", "CPU Temperature",
+                    celsius, "\u00b0C",
+                    icon: "mdi:thermometer", stateClass: "measurement"));
+                break; // First thermal zone only
             }
         }
+        catch { /* not available or not elevated */ }
+
+        // --- CPU load via WMI Win32_Processor.LoadPercentage ---
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT LoadPercentage FROM Win32_Processor");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var load = Convert.ToDouble(obj["LoadPercentage"]);
+                result.Add(new SensorData("cpu_percent", "CPU Usage",
+                    Math.Round(load, 1), "%",
+                    icon: "mdi:cpu-64-bit", stateClass: "measurement"));
+                break; // Aggregate across all CPUs via first result
+            }
+        }
+        catch { }
+
+        // Fallback: if WMI returned no load, try PerformanceCounter
+        if (!result.Any(s => s.UniqueId == "cpu_percent"))
+        {
+            try
+            {
+                using var pc = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                pc.NextValue(); // First read = 0
+                System.Threading.Thread.Sleep(100);
+                var load = Math.Round(pc.NextValue(), 1);
+                if (load >= 0)
+                {
+                    result.Add(new SensorData("cpu_percent", "CPU Usage",
+                        load, "%",
+                        icon: "mdi:cpu-64-bit", stateClass: "measurement"));
+                }
+            }
+            catch { }
+        }
+
         return result;
     }
 
-    private List<SensorData> GetGpuSensors()
+    // ─────────────────────────────────────────────────────────────────
+    //  CPU clock (WMI Win32_Processor)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetCpuClockSensors()
     {
         var result = new List<SensorData>();
-        // Search all hardware for GPU sensors (handles Nvidia, AMD, Intel)
-        foreach (var hw in _computer.Hardware)
+        try
         {
-            if (hw.HardwareType != HardwareType.GpuNvidia &&
-                hw.HardwareType != HardwareType.GpuAmd &&
-                hw.HardwareType != HardwareType.GpuIntel) continue;
-
-            hw.Update();
-            foreach (var sensor in hw.Sensors)
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT CurrentClockSpeed, MaxClockSpeed FROM Win32_Processor");
+            foreach (ManagementObject obj in searcher.Get())
             {
-                if (sensor.Value == null) continue;
+                // Prefer CurrentClockSpeed (dynamic); fall back to MaxClockSpeed
+                uint mhz = 0;
+                try { mhz = Convert.ToUInt32(obj["CurrentClockSpeed"]); }
+                catch { }
+                if (mhz == 0)
+                {
+                    try { mhz = Convert.ToUInt32(obj["MaxClockSpeed"]); }
+                    catch { }
+                }
+                if (mhz > 0)
+                {
+                    result.Add(new SensorData("cpu_clock", "CPU Clock", (double)mhz,
+                        "MHz", icon: "mdi:speedometer", stateClass: "measurement"));
+                }
+                break; // First processor
+            }
 
-                if (sensor.SensorType == SensorType.Load && sensor.Name.Contains("Core"))
+            // Fallback: PerformanceCounter "% Processor Performance" × MaxClockSpeed
+            if (!result.Any(s => s.UniqueId == "cpu_clock"))
+            {
+                try
                 {
-                    if (!result.Any(s => s.UniqueId == "gpu_load"))
+                    uint maxClock = 0;
+                    using (var searcher2 = new ManagementObjectSearcher(
+                        "SELECT MaxClockSpeed FROM Win32_Processor"))
                     {
-                        result.Add(new SensorData("gpu_load", "GPU Load",
-                            Math.Round(sensor.Value.Value, 1), "%",
-                            icon: "mdi:gpu", stateClass: "measurement"));
+                        foreach (ManagementObject obj in searcher2.Get())
+                        {
+                            try { maxClock = Convert.ToUInt32(obj["MaxClockSpeed"]); }
+                            catch { }
+                            break;
+                        }
+                    }
+                    if (maxClock > 0)
+                    {
+                        using var pc = new PerformanceCounter(
+                            "Processor Information", "% Processor Performance", "_Total");
+                        pc.NextValue();
+                        System.Threading.Thread.Sleep(50);
+                        var perf = pc.NextValue();
+                        var mhz = Math.Round(maxClock * perf / 100.0, 0);
+                        result.Add(new SensorData("cpu_clock", "CPU Clock", mhz,
+                            "MHz", icon: "mdi:speedometer", stateClass: "measurement"));
                     }
                 }
-                else if (sensor.SensorType == SensorType.Temperature)
+                catch { }
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  GPU sensors (PerformanceCounter + nvidia-smi / AMD subprocess)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetGpuSensors()
+    {
+        var result = new List<SensorData>();
+        var gpuVendor = GetGpuVendor();
+
+        // --- GPU temperature ---
+        // Strategy: nvidia-smi for NVIDIA, WMI thermal zone for AMD/Intel, or ADLX CLI
+        if (gpuVendor == "NVIDIA")
+        {
+            // NVIDIA: nvidia-smi is the gold standard
+            try
+            {
+                var psi = new ProcessStartInfo("nvidia-smi",
+                    "--query-gpu=temperature.gpu --format=csv,noheader,nounits")
                 {
-                    if (!result.Any(s => s.UniqueId == "gpu_temperature"))
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                var output = proc?.StandardOutput.ReadToEnd()?.Trim();
+                proc?.WaitForExit(3000);
+                if (!string.IsNullOrEmpty(output) && double.TryParse(output, out var gpuTemp))
+                {
+                    result.Add(new SensorData("gpu_temperature", "GPU Temperature",
+                        Math.Round(gpuTemp, 1), "\u00b0C",
+                        icon: "mdi:gpu", stateClass: "measurement"));
+                }
+            }
+            catch { /* nvidia-smi not available */ }
+        }
+        else
+        {
+            // AMD / Intel: try WMI thermal zones, then ADL command line tool
+            var amdTemp = GetAmdGpuTemperature();
+            if (amdTemp.HasValue)
+            {
+                result.Add(new SensorData("gpu_temperature", "GPU Temperature",
+                    Math.Round(amdTemp.Value, 1), "\u00b0C",
+                    icon: "mdi:gpu", stateClass: "measurement"));
+            }
+        }
+
+        // --- GPU load via PerformanceCounter "GPU Engine" ---
+        // Windows 10+ exposes per-engine utilization for ALL GPU vendors.
+        try
+        {
+            var category = new PerformanceCounterCategory("GPU Engine");
+            var instances = category.GetInstanceNames();
+            double maxUtil = 0;
+            foreach (var inst in instances)
+            {
+                // Focus on 3D / Graphics engines; skip Copy/Video engines
+                if (!inst.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) &&
+                    !inst.Contains("engtype_Graphics", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
+                {
+                    using var pc = new PerformanceCounter("GPU Engine",
+                        "Utilization Percentage", inst);
+                    var val = pc.NextValue();
+                    if (val > maxUtil) maxUtil = val;
+                }
+                catch { }
+            }
+            // Need a brief pause and re-read for accurate PerformanceCounter
+            if (maxUtil > 0)
+            {
+                System.Threading.Thread.Sleep(200);
+                foreach (var inst in instances)
+                {
+                    if (!inst.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) &&
+                        !inst.Contains("engtype_Graphics", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    try
                     {
-                        result.Add(new SensorData("gpu_temperature", "GPU Temperature",
-                            Math.Round(sensor.Value.Value, 1), "\u00b0C",
-                            icon: "mdi:gpu", stateClass: "measurement"));
+                        using var pc = new PerformanceCounter("GPU Engine",
+                            "Utilization Percentage", inst);
+                        var val = pc.NextValue();
+                        if (val > maxUtil) maxUtil = val;
+                    }
+                    catch { }
+                }
+            }
+            if (maxUtil > 0)
+            {
+                result.Add(new SensorData("gpu_load", "GPU Load",
+                    Math.Round(maxUtil, 1), "%",
+                    icon: "mdi:gpu", stateClass: "measurement"));
+            }
+        }
+        catch { /* GPU Engine counters not available */ }
+
+        return result;
+    }
+
+    /// <summary>Detects GPU vendor from WMI (NVIDIA, AMD, or Intel).</summary>
+    private static string GetGpuVendor()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT AdapterCompatibility FROM Win32_VideoController");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var compat = obj["AdapterCompatibility"]?.ToString() ?? "";
+                if (compat.IndexOf("NVIDIA", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "NVIDIA";
+                if (compat.IndexOf("AMD", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    compat.IndexOf("ATI", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "AMD";
+                if (compat.IndexOf("Intel", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "Intel";
+            }
+        }
+        catch { }
+        return "Unknown";
+    }
+
+    /// <summary>Gets AMD GPU temperature using multiple driverless strategies.</summary>
+    private static double? GetAmdGpuTemperature()
+    {
+        // Strategy 1: AMD ADLX CLI tool (installed with Radeon Software)
+        // Location: %ProgramFiles%\\AMD\\CIM\\adl.exe or %ProgramFiles%\\AMD\\OverDrive\\od.exe
+        var adlPaths = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                "AMD", "CIM", "adl.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "AMD", "CIM", "adl.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "AMD", "OverDrive", "od.exe"),
+        };
+        foreach (var adlPath in adlPaths)
+        {
+            if (!File.Exists(adlPath)) continue;
+            try
+            {
+                var psi = new ProcessStartInfo(adlPath)
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                var output = proc?.StandardOutput.ReadToEnd() ?? "";
+                proc?.WaitForExit(3000);
+                // Parse temperature from ADL output (format varies)
+                foreach (var line in output.Split('\n'))
+                {
+                    if (line.Contains("temp", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("Temp", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Try to extract a number near "temp" keyword
+                        var parts = line.Split(new[] { ':', '=', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var part in parts)
+                        {
+                            if (double.TryParse(part, out var temp) && temp > 20 && temp < 120)
+                                return temp;
+                        }
                     }
                 }
-                else if (sensor.SensorType == SensorType.Fan)
+            }
+            catch { }
+        }
+
+        // Strategy 2: WMI thermal zones — look for GPU-related thermal zone
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                @"root\WMI",
+                "SELECT InstanceName, CurrentTemperature FROM MSAcpi_ThermalZoneTemperature");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var instanceName = obj["InstanceName"]?.ToString() ?? "";
+                var raw = Convert.ToDouble(obj["CurrentTemperature"]);
+                // Look for GPU-related thermal zone names (AMD GPUs often appear as "GPUZ" or similar)
+                if (instanceName.Contains("GPU", StringComparison.OrdinalIgnoreCase) ||
+                    instanceName.Contains("Graphics", StringComparison.OrdinalIgnoreCase) ||
+                    instanceName.Contains("Radeon", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!result.Any(s => s.UniqueId == "gpu_fan_speed"))
+                    return Math.Round((raw / 10.0) - 273.15, 1);
+                }
+            }
+        }
+        catch { /* WMI thermal zones not accessible */ }
+
+        // Strategy 3: PerformanceCounter GPU adapter memory (indirect indicator)
+        // If GPU is under load, temperature is likely elevated — but can't get exact number
+        // Return null — sensor simply won't appear in HA
+        return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Fan sensors (WMI Win32_Fan + GPU fan via nvidia-smi / AMD ADL)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetFanSensors()
+    {
+        var result = new List<SensorData>();
+        var gpuVendor = GetGpuVendor();
+
+        // GPU fan speed — vendor-specific
+        if (gpuVendor == "NVIDIA")
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("nvidia-smi",
+                    "--query-gpu=fan.speed --format=csv,noheader,nounits")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                var output = proc?.StandardOutput.ReadToEnd()?.Trim();
+                proc?.WaitForExit(3000);
+                if (!string.IsNullOrEmpty(output) && double.TryParse(output, out var fanPct))
+                {
+                    result.Add(new SensorData("gpu_fan_speed", "GPU Fan Speed",
+                        Math.Round(fanPct, 0), "%",
+                        icon: "mdi:fan", stateClass: "measurement"));
+                }
+            }
+            catch { }
+        }
+        // AMD GPU fan — WMI thermal zone fan data or ADL CLI (limited availability)
+        // Note: AMD doesn't expose fan percentage via simple CLI like nvidia-smi
+
+        // System fans via WMI Win32_Fan (rarely populated on consumer boards)
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, DesiredSpeed FROM Win32_Fan");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                try
+                {
+                    var name = obj["Name"]?.ToString() ?? "System Fan";
+                    var rpm = Convert.ToDouble(obj["DesiredSpeed"]);
+                    if (rpm > 0)
                     {
-                        var rpm = Math.Round(sensor.Value.Value, 0);
-                        result.Add(new SensorData("gpu_fan_speed", "GPU Fan Speed", rpm, "RPM",
+                        var uid = name.ToLowerInvariant()
+                            .Replace(" ", "_").Replace("#", "");
+                        result.Add(new SensorData($"fan_{uid}", $"Fan: {name}",
+                            Math.Round(rpm, 0), "RPM",
                             icon: "mdi:fan", stateClass: "measurement"));
                     }
                 }
+                catch { }
             }
         }
+        catch { /* Win32_Fan not available */ }
+
         return result;
     }
 
-    private List<SensorData> GetMemorySensors()
+    // ─────────────────────────────────────────────────────────────────
+    //  Memory sensors (WMI — unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetMemorySensors()
     {
         var result = new List<SensorData>();
         try
@@ -215,7 +513,11 @@ public class SensorManager : IDisposable
         return result;
     }
 
-    private List<SensorData> GetDiskSensors()
+    // ─────────────────────────────────────────────────────────────────
+    //  Disk sensors (DriveInfo — unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetDiskSensors()
     {
         var result = new List<SensorData>();
         try
@@ -244,6 +546,10 @@ public class SensorManager : IDisposable
         return result;
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  Uptime (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetUptime()
     {
         var uptime = Environment.TickCount64 / 1000;
@@ -251,6 +557,10 @@ public class SensorManager : IDisposable
         return new SensorData("uptime", "Uptime", hours, "h",
             icon: "mdi:clock-outline", stateClass: "measurement");
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Last activity (unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private static SensorData? GetLastActivity()
     {
@@ -263,6 +573,10 @@ public class SensorManager : IDisposable
         }
         catch { return null; }
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Battery (WMI — unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private static SensorData? GetBattery()
     {
@@ -281,6 +595,10 @@ public class SensorManager : IDisposable
         return null;
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  User32 interop (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     [DllImport("user32.dll")]
     private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
 
@@ -298,6 +616,10 @@ public class SensorManager : IDisposable
         return (uint)Environment.TickCount - lii.dwTime;
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  IP address (WMI — unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetIpAddress()
     {
         try
@@ -311,7 +633,6 @@ public class SensorManager : IDisposable
                 {
                     foreach (var ip in ips)
                     {
-                        // Return first IPv4 address (skip IPv6)
                         if (ip.Contains("."))
                         {
                             return new SensorData("ip_address", "IP Address", ip,
@@ -325,6 +646,10 @@ public class SensorManager : IDisposable
         return new SensorData("ip_address", "IP Address", "unavailable",
             icon: "mdi:ip-network-off");
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Connectivity (ping — unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private static SensorData GetConnectivity()
     {
@@ -341,6 +666,10 @@ public class SensorManager : IDisposable
             deviceClass: "connectivity", icon: "mdi:close-network");
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  Process count (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetProcessCount()
     {
         try
@@ -351,6 +680,10 @@ public class SensorManager : IDisposable
         }
         catch { return new SensorData("process_count", "Running Processes", 0, icon: "mdi:cog"); }
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Page file (WMI — unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private static SensorData GetPageFile()
     {
@@ -365,7 +698,6 @@ public class SensorManager : IDisposable
                 var usedGB = Math.Round(usedMB / 1024.0, 2);
                 var totalGB = Math.Round(totalMB / 1024.0, 2);
                 var percent = Math.Round(usedMB / totalMB * 100, 1);
-                // Return just the percent, we can't return multiple from here
                 return new SensorData("page_file_percent", "Page File Usage", percent, "%",
                     icon: "mdi:harddisk", stateClass: "measurement");
             }
@@ -374,6 +706,10 @@ public class SensorManager : IDisposable
         return new SensorData("page_file_percent", "Page File Usage", 0, "%",
             icon: "mdi:harddisk", stateClass: "measurement");
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  WiFi (WMI + netsh — unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private static SensorData? GetWifiSsid()
     {
@@ -399,8 +735,6 @@ public class SensorManager : IDisposable
         {
             using var searcher = new ManagementObjectSearcher(
                 "SELECT Name, Description FROM Win32_NetworkAdapter WHERE NetConnectionStatus = 2");
-            // Signal strength requires netsh, WMI doesn't expose it directly
-            // Use netsh as fallback
             var psi = new System.Diagnostics.ProcessStartInfo("netsh", "wlan show interfaces")
             {
                 RedirectStandardOutput = true,
@@ -433,6 +767,10 @@ public class SensorManager : IDisposable
         return null;
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  Active window (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetActiveWindow()
     {
         try
@@ -450,71 +788,9 @@ public class SensorManager : IDisposable
             icon: "mdi:window-maximize");
     }
 
-    private List<SensorData> GetFanSensors()
-    {
-        var result = new List<SensorData>();
-
-        // CPU fan
-        var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-        if (cpu != null)
-        {
-            foreach (var sensor in cpu.Sensors)
-            {
-                if (sensor.Value == null) continue;
-                if (sensor.SensorType == SensorType.Fan)
-                {
-                    var rpm = Math.Round(sensor.Value.Value, 0);
-                    var name = sensor.Name.Contains("CPU") || sensor.Name.Contains("Fan")
-                        ? "CPU Fan Speed"
-                        : $"Fan ({sensor.Name})";
-                    var uid = sensor.Name.ToLowerInvariant().Replace(" ", "_").Replace("#", "");
-                    result.Add(new SensorData($"fan_{uid}", name, rpm, "RPM",
-                        icon: "mdi:fan", stateClass: "measurement"));
-                    break; // First fan only
-                }
-            }
-        }
-
-        // SuperIO / Motherboard fans (GPU fan is already handled by GetGpuSensors)
-        var superIO = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.SuperIO);
-        if (superIO != null)
-        {
-            foreach (var sensor in superIO.Sensors)
-            {
-                if (sensor.Value == null) continue;
-                if (sensor.SensorType == SensorType.Fan)
-                {
-                    var rpm = Math.Round(sensor.Value.Value, 0);
-                    var label = sensor.Name.Trim();
-                    var uid = label.ToLowerInvariant().Replace(" ", "_").Replace("#", "");
-                    result.Add(new SensorData($"fan_{uid}", $"Fan: {label}", rpm, "RPM",
-                        icon: "mdi:fan", stateClass: "measurement"));
-                }
-            }
-        }
-
-        return result;
-    }
-
-    private List<SensorData> GetCpuClockSensors()
-    {
-        var result = new List<SensorData>();
-        var cpu = _computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-        if (cpu == null) return result;
-
-        foreach (var sensor in cpu.Sensors)
-        {
-            if (sensor.Value == null) continue;
-            if (sensor.SensorType == SensorType.Clock && sensor.Name.Contains("Core #1"))
-            {
-                var mhz = Math.Round(sensor.Value.Value, 0);
-                result.Add(new SensorData("cpu_clock", "CPU Clock", mhz, "MHz",
-                    icon: "mdi:speedometer", stateClass: "measurement"));
-                break; // Only first core
-            }
-        }
-        return result;
-    }
+    // ─────────────────────────────────────────────────────────────────
+    //  Network throughput (PerformanceCounter — unchanged)
+    // ─────────────────────────────────────────────────────────────────
 
     private List<SensorData> GetNetworkSensors()
     {
@@ -523,7 +799,6 @@ public class SensorManager : IDisposable
         {
             var category = new System.Diagnostics.PerformanceCounterCategory("Network Interface");
             var instances = category.GetInstanceNames();
-            // Find a real network adapter (skip loopback/ISATAP)
             foreach (var instance in instances)
             {
                 if (instance.ToLowerInvariant().Contains("loopback") ||
@@ -538,7 +813,6 @@ public class SensorManager : IDisposable
                         "Bytes Sent/sec", instance);
                     var recv = new System.Diagnostics.PerformanceCounter("Network Interface",
                         "Bytes Received/sec", instance);
-                    // Need to read twice (first read = 0)
                     sent.NextValue(); recv.NextValue();
                     System.Threading.Thread.Sleep(100);
                     var uploadKbps = Math.Round(sent.NextValue() / 1024.0, 1);
@@ -548,7 +822,7 @@ public class SensorManager : IDisposable
                         icon: "mdi:upload", stateClass: "measurement"));
                     result.Add(new SensorData("network_download", "Download Speed", downloadKbps, "KB/s",
                         icon: "mdi:download", stateClass: "measurement"));
-                    break; // Only first real adapter
+                    break;
                 }
                 catch { }
             }
@@ -557,7 +831,10 @@ public class SensorManager : IDisposable
         return result;
     }
 
-    // === Fullscreen detection ===
+    // ─────────────────────────────────────────────────────────────────
+    //  Fullscreen detection (User32 — unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -603,29 +880,23 @@ public class SensorManager : IDisposable
             if (hwnd == IntPtr.Zero)
                 return new SensorData("fullscreen", "Fullscreen", "off", icon: "mdi:fullscreen", stateClass: "measurement");
 
-            // Get window title
             var titleBuilder = new System.Text.StringBuilder(256);
             GetWindowText(hwnd, titleBuilder, 256);
             var title = titleBuilder.ToString();
 
-            // Empty title = not a user window
             if (string.IsNullOrWhiteSpace(title))
                 return new SensorData("fullscreen", "Fullscreen", "off", icon: "mdi:fullscreen", stateClass: "measurement");
 
-            // Get window rect
             GetWindowRect(hwnd, out var windowRect);
 
-            // Get the monitor the window is on
             var monitor = MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */);
             var monitorInfo = new MONITORINFO();
             monitorInfo.Size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(MONITORINFO));
             GetMonitorInfo(monitor, ref monitorInfo);
 
-            // Use WorkArea (excludes taskbar) for fullscreen detection
             var workArea = monitorInfo.WorkArea;
             var screen = monitorInfo.Monitor;
 
-            // Get window style
             var style = GetWindowLong(hwnd, GWL_STYLE);
             var isBorderless = (style & (WS_CAPTION | WS_THICKFRAME)) == 0;
 
@@ -636,10 +907,6 @@ public class SensorManager : IDisposable
             var screenW = screen.Right - screen.Left;
             var screenH = screen.Bottom - screen.Top;
 
-            // Fullscreen detection:
-            // 1. Borderless window that covers the entire screen (F11 browser, games)
-            // 2. Window that covers the full work area (maximized)
-            // 3. Window that extends beyond work area (true fullscreen over taskbar)
             bool coversWorkArea = windowRect.Left <= workArea.Left + 5 &&
                                  windowRect.Top <= workArea.Top + 5 &&
                                  windowWidth >= workWidth - 10 &&
@@ -650,10 +917,8 @@ public class SensorManager : IDisposable
                                       windowWidth >= screenW - 5 &&
                                       windowHeight >= screenH - 5;
 
-            // True fullscreen: borderless OR covers entire screen including taskbar
             var fullscreen = isBorderless || coversEntireScreen;
 
-            // Also treat maximized windows covering work area as fullscreen
             if (!fullscreen && coversWorkArea)
                 fullscreen = true;
 
@@ -667,7 +932,10 @@ public class SensorManager : IDisposable
         }
     }
 
-    // === Monitor Layout ===
+    // ─────────────────────────────────────────────────────────────────
+    //  Monitor layout (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetMonitorLayout()
     {
         try
@@ -683,7 +951,10 @@ public class SensorManager : IDisposable
         }
     }
 
-    // === Brightness ===
+    // ─────────────────────────────────────────────────────────────────
+    //  Brightness (WMI + PowerShell fallback — unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData? GetBrightness()
     {
         try
@@ -701,7 +972,6 @@ public class SensorManager : IDisposable
         return null;
     }
 
-    // === Brightness control ===
     public static void SetBrightness(int targetBrightness)
     {
         try
@@ -715,12 +985,11 @@ public class SensorManager : IDisposable
                 {
                     obj.InvokeMethod("WmiSetBrightness", new object[] { (uint)targetBrightness, 0 });
                 }
-                return; // Success via WMI
+                return;
             }
         }
         catch { }
 
-        // Fallback: use PowerShell to set brightness (works without admin on most systems)
         try
         {
             var psi = new System.Diagnostics.ProcessStartInfo
@@ -751,7 +1020,10 @@ public class SensorManager : IDisposable
         return null;
     }
 
-    // === Webcam Active Sensor ===
+    // ─────────────────────────────────────────────────────────────────
+    //  App version (unchanged)
+    // ─────────────────────────────────────────────────────────────────
+
     private static SensorData GetAppVersion()
     {
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
@@ -759,20 +1031,17 @@ public class SensorManager : IDisposable
             version, icon: "mdi:information-outline");
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  IDisposable
+    // ─────────────────────────────────────────────────────────────────
+
     public void Dispose()
     {
         if (!_disposed)
         {
-            _computer.Close();
+            // No persistent native resources to clean up.
+            // PerformanceCounters are created/disposed per-call.
             _disposed = true;
         }
     }
-}
-
-public class UpdateVisitor : IVisitor
-{
-    public void VisitComputer(IComputer computer) { }
-    public void VisitHardware(IHardware hardware) { hardware.Update(); }
-    public void VisitSensor(ISensor sensor) { }
-    public void VisitParameter(IParameter parameter) { }
 }
