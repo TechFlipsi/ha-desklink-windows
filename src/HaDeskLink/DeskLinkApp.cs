@@ -165,7 +165,7 @@ public class DeskLinkApp
         {
             if (!string.IsNullOrEmpty(_config.HotkeyDashboardKey) && _config.HotkeyDashboardModifiers != "none")
             {
-                _dashboardHotkey = new QuickActionHandler(() => DashboardWindow.Open(_config.HaUrl),
+                _dashboardHotkey = new QuickActionHandler(() => DashboardWindow.Open(_config.HaUrl, _config.HaToken),
                     _config.HotkeyDashboardModifiers, _config.HotkeyDashboardKey);
                 _dashboardHotkey.Start();
             }
@@ -261,9 +261,8 @@ public class DeskLinkApp
         menu.Items.Add(Localization.Get("tray_dashboard", "Dashboard"), null, (s, e) =>
         {
             if (!string.IsNullOrEmpty(_config.HaUrl))
-                DashboardWindow.Open(_config.HaUrl);
+                DashboardWindow.Open(_config.HaUrl, _config.HaToken);
         });
-
         menu.Items.Add(Localization.Get("quickactions_title", "Quick Actions") + " (Ctrl+Shift+H)", null, (s, e) =>
         {
             try
@@ -334,7 +333,7 @@ public class DeskLinkApp
         _trayIcon.DoubleClick += (s, e) =>
         {
             if (!string.IsNullOrEmpty(_config.HaUrl))
-                DashboardWindow.Open(_config.HaUrl);
+                DashboardWindow.Open(_config.HaUrl, _config.HaToken);
         };
     }
 
