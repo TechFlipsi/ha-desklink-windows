@@ -1,27 +1,27 @@
 // HA DeskLink - Home Assistant Companion App
 // Copyright (C) 2026 Fabian Kirchweger
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License v3 as published by
-// the Free Software Foundation.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace HaDeskLink;
 
 /// <summary>
-/// Handles notifications and commands from Home Assistant.
-/// Uses WinForms BalloonTip + dialog with action buttons.
+/// Handles notifications from Home Assistant with modern dark-themed popups.
+/// Auto-dismisses after 8s, supports action buttons, HA blue accent.
 /// </summary>
 public static class NotificationHandler
 {
+    private static readonly Color BgColor = Color.FromArgb(22, 33, 62);
+    private static readonly Color AccentBlue = Color.FromArgb(66, 133, 244);
+    private static readonly Color TextWhite = Color.FromArgb(230, 230, 240);
+    private static readonly Color TextGray = Color.FromArgb(160, 160, 180);
+    private static readonly Color BtnBg = Color.FromArgb(15, 52, 96);
+    private static readonly Color BtnHover = Color.FromArgb(25, 72, 136);
+
     public static bool TryHandleNotification(string jsonBody, NotifyIcon? trayIcon)
     {
         try
@@ -35,23 +35,16 @@ public static class NotificationHandler
             List<NotificationAction>? actions = null;
             string? commandOnAction = null;
 
-            if (root.TryGetProperty("title", out var t1))
-                title = t1.GetString() ?? title;
-            if (root.TryGetProperty("message", out var m1))
-                message = m1.GetString() ?? "";
-            if (root.TryGetProperty("command", out var c1))
-                command = c1.GetString();
+            if (root.TryGetProperty("title", out var t1)) title = t1.GetString() ?? title;
+            if (root.TryGetProperty("message", out var m1)) message = m1.GetString() ?? "";
+            if (root.TryGetProperty("command", out var c1)) command = c1.GetString();
 
             if (root.TryGetProperty("data", out var data))
             {
-                if (data.TryGetProperty("title", out var t2))
-                    title = t2.GetString() ?? title;
-                if (data.TryGetProperty("message", out var m2))
-                    message = m2.GetString() ?? message;
-                if (data.TryGetProperty("command", out var c2))
-                    command = c2.GetString();
-                if (data.TryGetProperty("command_on_action", out var coa))
-                    commandOnAction = coa.GetString();
+                if (data.TryGetProperty("title", out var t2)) title = t2.GetString() ?? title;
+                if (data.TryGetProperty("message", out var m2)) message = m2.GetString() ?? message;
+                if (data.TryGetProperty("command", out var c2)) command = c2.GetString();
+                if (data.TryGetProperty("command_on_action", out var coa)) commandOnAction = coa.GetString();
                 if (data.TryGetProperty("actions", out var actionsArr))
                 {
                     actions = new List<NotificationAction>();
@@ -67,8 +60,7 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(command))
             {
-                try { CommandHandler.Execute(command!); }
-                catch { }
+                try { CommandHandler.Execute(command!); } catch { }
             }
 
             if (!string.IsNullOrEmpty(message))
@@ -88,81 +80,18 @@ public static class NotificationHandler
 
     public static void ShowNotification(string title, string message, NotifyIcon? trayIcon)
     {
-        if (trayIcon != null)
-        {
-            trayIcon.BalloonTipTitle = title;
-            trayIcon.BalloonTipText = message;
-            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
-            trayIcon.ShowBalloonTip(5000);
-        }
-        else
-        {
-            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+        // Show modern toast popup
+        var toast = new NotificationToast(title, message);
+        toast.Show();
     }
 
-    /// <summary>
-    /// Show notification with action buttons using BalloonTip + WinForms dialog.
-    /// </summary>
     public static void ShowActionableNotification(string title, string message,
         List<NotificationAction> actions, string? commandOnAction, NotifyIcon? trayIcon)
     {
-        // Show balloon tip for quick awareness
-        if (trayIcon != null)
-        {
-            trayIcon.BalloonTipTitle = title;
-            trayIcon.BalloonTipText = message;
-            trayIcon.BalloonTipIcon = ToolTipIcon.Info;
-            trayIcon.ShowBalloonTip(5000);
-        }
-
-        // Show dialog with action buttons
-        var form = new Form
-        {
-            Text = title,
-            Size = new System.Drawing.Size(420, 220),
-            StartPosition = FormStartPosition.CenterScreen,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            TopMost = true
-        };
-
-        var lbl = new Label { Text = message, Dock = DockStyle.Top, Height = 80, TextAlign = System.Drawing.ContentAlignment.MiddleLeft };
-        form.Controls.Add(lbl);
-
-        var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 60, FlowDirection = FlowDirection.LeftToRight };
-        foreach (var action in actions)
-        {
-            var btn = new Button { Text = action.Title, Width = 120, Height = 40, Tag = action };
-            btn.Click += (s, e) =>
-            {
-                var a = (NotificationAction)((Button)s!).Tag!;
-                if (!string.IsNullOrEmpty(a.Command))
-                {
-                    try { CommandHandler.Execute(a.Command!); }
-                    catch { }
-                }
-                else if (!string.IsNullOrEmpty(commandOnAction))
-                {
-                    try { CommandHandler.Execute(commandOnAction); }
-                    catch { }
-                }
-                form.Close();
-            };
-            btnPanel.Controls.Add(btn);
-        }
-        var dismissBtn = new Button { Text = "✕ Schließen", Width = 100, Height = 40 };
-        dismissBtn.Click += (s, e) => form.Close();
-        btnPanel.Controls.Add(dismissBtn);
-
-        form.Controls.Add(btnPanel);
-        form.Show();
+        var toast = new NotificationToast(title, message, actions, commandOnAction);
+        toast.Show();
     }
 
-    /// <summary>
-    /// Called from HaWebSocketClient when a push notification event has actions.
-    /// </summary>
     public static void ShowWebSocketNotification(string title, string message,
         List<NotificationAction>? actions, string? commandOnAction, NotifyIcon? trayIcon)
     {
@@ -170,6 +99,148 @@ public static class NotificationHandler
             ShowActionableNotification(title, message, actions, commandOnAction, trayIcon);
         else
             ShowNotification(title, message, trayIcon);
+    }
+}
+
+/// <summary>
+/// Modern dark-themed toast notification popup.
+/// Slides in from top-right, auto-closes after 8s, HA blue accent bar.
+/// </summary>
+public class NotificationToast : Form
+{
+    private readonly Timer _autoCloseTimer;
+    private readonly List<NotificationAction>? _actions;
+    private readonly string? _commandOnAction;
+
+    public NotificationToast(string title, string message,
+        List<NotificationAction>? actions = null, string? commandOnAction = null)
+    {
+        _actions = actions;
+        _commandOnAction = commandOnAction;
+
+        FormBorderStyle = FormBorderStyle.None;
+        StartPosition = FormStartPosition.Manual;
+        TopMost = true;
+        ShowInTaskbar = false;
+        Size = new Size(400, CalculateHeight(message, actions));
+        BackColor = Color.FromArgb(22, 33, 62);
+
+        // Round corners
+        Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 16, 16));
+
+        BuildContent(title, message, actions);
+
+        _autoCloseTimer = new Timer { Interval = 8000 };
+        _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
+        _autoCloseTimer.Start();
+
+        Load += (s, e) => PositionTopRight();
+    }
+
+    private int CalculateHeight(string message, List<NotificationAction>? actions)
+    {
+        var lines = Math.Max(1, message.Length / 45 + 1);
+        var h = 60 + lines * 20;
+        if (actions != null && actions.Count > 0) h += 50;
+        return Math.Max(100, Math.Min(h, 300));
+    }
+
+    private void BuildContent(string title, string message, List<NotificationAction>? actions)
+    {
+        // Left accent bar
+        var accentBar = new Panel { BackColor = Color.FromArgb(66, 133, 244), Size = new Size(4, Height), Dock = DockStyle.Left };
+
+        // Title
+        var titleLabel = new Label
+        {
+            Text = title, Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+            ForeColor = Color.White, AutoSize = true,
+            Location = new Point(16, 12)
+        };
+
+        // Close button
+        var closeBtn = new Label
+        {
+            Text = "✕", Font = new Font("Segoe UI", 11f),
+            ForeColor = Color.FromArgb(160, 160, 180),
+            Location = new Point(Width - 30, 8), AutoSize = true, Cursor = Cursors.Hand
+        };
+        closeBtn.Click += (s, e) => Close();
+
+        // Message
+        var msgLabel = new Label
+        {
+            Text = message, Font = new Font("Segoe UI", 10f),
+            ForeColor = Color.FromArgb(200, 200, 215),
+            Location = new Point(16, 40), MaximumSize = new Size(360, 0), AutoSize = true
+        };
+
+        // Timestamp
+        var timeLabel = new Label
+        {
+            Text = DateTime.Now.ToString("HH:mm"), Font = new Font("Segoe UI", 8f),
+            ForeColor = Color.FromArgb(140, 140, 160),
+            Location = new Point(Width - 55, Height - 22), AutoSize = true
+        };
+
+        Controls.AddRange(new Control[] { accentBar, titleLabel, closeBtn, msgLabel, timeLabel });
+
+        // Action buttons
+        if (actions != null && actions.Count > 0)
+        {
+            var btnX = 16;
+            var btnY = msgLabel.Bottom + 10;
+            foreach (var action in actions)
+            {
+                var btn = new Button
+                {
+                    Text = action.Title, Font = new Font("Segoe UI", 9f),
+                    BackColor = Color.FromArgb(15, 52, 96), ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat, Size = new Size(120, 32),
+                    Location = new Point(btnX, btnY), Cursor = Cursors.Hand, Tag = action
+                };
+                btn.FlatAppearance.BorderSize = 0;
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(25, 72, 136);
+                btn.Click += ActionButtonClick;
+                Controls.Add(btn);
+                btnX += btn.Width + 8;
+            }
+        }
+    }
+
+    private void ActionButtonClick(object? sender, EventArgs e)
+    {
+        var btn = sender as Button;
+        if (btn?.Tag is NotificationAction a)
+        {
+            if (!string.IsNullOrEmpty(a.Command))
+            {
+                try { CommandHandler.Execute(a.Command!); } catch { }
+            }
+            else if (!string.IsNullOrEmpty(_commandOnAction))
+            {
+                try { CommandHandler.Execute(_commandOnAction); } catch { }
+            }
+        }
+        Close();
+    }
+
+    private void PositionTopRight()
+    {
+        var screen = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
+        Location = new Point(screen.Right - Width - 20, screen.Top + 20);
+    }
+
+    protected override void OnMouseEnter(EventArgs e) { _autoCloseTimer.Stop(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _autoCloseTimer.Start(); base.OnMouseLeave(e); }
+
+    [System.Runtime.InteropServices.DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
+    private static extern IntPtr CreateRoundRectRgn(int x, int y, int w, int h, int rx, int ry);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _autoCloseTimer?.Dispose();
+        base.Dispose(disposing);
     }
 }
 
