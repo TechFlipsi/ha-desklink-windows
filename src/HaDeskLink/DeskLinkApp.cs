@@ -404,7 +404,7 @@ public class DeskLinkApp
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "3.1.0";
+        return "3.1.1";
     }
 
     private List<QuickAction> LoadQuickActions()
