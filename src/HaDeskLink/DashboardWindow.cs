@@ -197,29 +197,25 @@ public class DashboardWindow : Form
         }
     }
 
-    /// <summary>
-    /// Builds the window.externalApp JavaScript interface as documented by HA:
-    /// https://developers.home-assistant.io/docs/frontend/external-authentication/
-    /// </summary>
     private string BuildExternalAuthScript()
     {
         var t = _token.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\"", "\\\"").Replace("\n", "").Replace("\r", "");
-
-        return $"""
-        (function() {{
-            if (window._externalAuthInjected) return;
-            window._externalAuthInjected = true;
-            window.externalApp = {{
-                getExternalAuth: function(cb, force) {{
-                    try {{ cb({{ access_token: '{t}', expires_in: 900, refresh_token: '{t}', token_type: 'Bearer' }}); }}
-                    catch(e) {{ console.error('[HA DeskLink] getExternalAuth error:', e); }}
-                }},
-                saveExternalAuth: function(data, cb) {{ try {{ if (cb) cb(); }} catch(e) {{}} }},
-                revokeExternalAuth: function(cb) {{ try {{ if (cb) cb(); }} catch(e) {{}} if (window.close) window.close(); }}
-            }};
-            console.log('[HA DeskLink] externalAuth interface injected');
-        }})();
-        """;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("(function() {");
+        sb.AppendLine("  if (window._externalAuthInjected) return;");
+        sb.AppendLine("  window._externalAuthInjected = true;");
+        sb.AppendLine("  window.externalApp = {");
+        sb.AppendLine("    getExternalAuth: function(cb, force) {");
+        sb.AppendLine("      try { cb({ access_token: '" + t + "', expires_in: 900, refresh_token: '" + t + "', token_type: 'Bearer' }); }");
+        sb.AppendLine("      catch(e) { console.error('[HA DeskLink] getExternalAuth error:', e); }");
+        sb.AppendLine("    },");
+        sb.AppendLine("    saveExternalAuth: function(data, cb) { try { if (cb) cb(); } catch(e) {} },");
+        sb.AppendLine("    revokeExternalAuth: function(cb) { try { if (cb) cb(); } catch(e) {} if (window.close) window.close(); }");
+        sb.AppendLine("  };");
+        sb.AppendLine("  console.log('[HA DeskLink] externalAuth interface injected');");
+        sb.AppendLine("})();");
+        return sb.ToString();
+    }
     }
 
     private void ShowError(string message)
