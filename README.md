@@ -1,4 +1,4 @@
-# HA DeskLink v3.0
+# HA DeskLink v3.1
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
@@ -16,11 +16,11 @@
 
 📊 **[HASS.Agent vs. HA DeskLink](COMPARISON.md)** – Features, Architektur & Migration im Vergleich (DE + EN)
 
-Geschrieben in **C# / .NET 8** mit LibreHardwareMonitorLib für echte Hardware-Sensoren.
+Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + PerformanceCounter (kein Kernel-Treiber nötig!).
 
 ## Features
-- 🌡️ **CPU & GPU Temperatur** – echte Werte dank LibreHardwareMonitorLib
-- 📊 **Alle Sensoren** – CPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime
+- 🌡️ **CPU & GPU Temperatur** – treiberlos via WMI + PerformanceCounter (kein WinRing0, keine Defender-Warnung!)
+- 📊 **Alle Sensoren** – CPU, GPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime
 - 🖥️ **Eingebettetes Dashboard** – WebView2 (mit Auto-Install falls fehlend)
 - ⚡ **PC-Befehle aus HA** – Shutdown, Restart, Hibernate, Lock, und mehr per Benachrichtigung
 - 📬 **Benachrichtigungen** – HA sendet Toast-Notifications an den PC
@@ -34,13 +34,12 @@ Geschrieben in **C# / .NET 8** mit LibreHardwareMonitorLib für echte Hardware-S
 - 🔌 **mobile_app Protokoll** – identisch zur Handy-App, keine Extra-Konfiguration in HA nötig
 - 🔄 **Auto-Update** von GitHub Releases
 - 📌 **System Tray** – läuft minimiert im Hintergrund
-- 🛡️ **Admin-Rechte** – automatisch angefordert für CPU/GPU-Temperatur
+- 🛡️ **Kein Kernel-Treiber** – keine Defender-Warnung, kein WinRing0, keine Admin-Rechte für Grund-Sensoren
 
 ## Systemanforderungen
 - Windows 10/11 (x64)
 - Kein .NET Runtime nötig – alles im Installer enthalten
-
-> ⚠️ **Windows Defender-Hinweis:** Windows Defender meldet möglicherweise „Vulnerable Driver: WinNT/Winring0" für `HA_DeskLink.sys`. Das ist ein **Fehlalarm** – der WinRing0-Treiber wird von LibreHardwareMonitorLib für CPU/GPU-Temperatur benötigt. Siehe [Betriebsanleitung](MANUAL.md#windows-defender--vulnerable-driver-winntwinring0) für Details zum Zulassen.
+- **Keine Defender-Warnung mehr!** – Ab v3.1: komplett treiberlos, kein WinRing0
 
 ## Installation
 1. Neueste `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/FKirchweger/ha-desklink-dotnet/releases/latest) herunterladen
@@ -230,7 +229,7 @@ iscc installer.iss
 ## Technologie
 | Komponente | Library |
 |---|---|
-| Hardware-Sensoren | LibreHardwareMonitorLib |
+| Hardware-Sensoren | WMI + PerformanceCounter (treiberlos) |
 | Dashboard | Microsoft.Web.WebView2 |
 | UI | Windows Forms |
 | HTTP | System.Net.Http |
