@@ -87,17 +87,17 @@ public class SettingsWindow : Form
         connTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         _urlBox = new TextBox { Dock = DockStyle.Fill, Text = "https://homeassistant.local:8123" };
-        _urlBox.ToolTipText = "Die URL deiner Home Assistant Instanz, z.B. http://192.168.1.100:8123";
+        AddTooltip(_urlBox, "Die URL deiner Home Assistant Instanz, z.B. http://192.168.1.100:8123");
         connTable.Controls.Add(MakeLabel(Localization.Get("settings_ha_url")), 0, 0);
         connTable.Controls.Add(_urlBox, 1, 0);
 
         _tokenBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
-        _tokenBox.ToolTipText = "Long-Lived Access Token aus HA: Profil → Sicherheit → Token erstellen";
+        AddTooltip(_tokenBox, "Long-Lived Access Token aus HA: Profil → Sicherheit → Token erstellen");
         connTable.Controls.Add(MakeLabel(Localization.Get("settings_token")), 0, 1);
         connTable.Controls.Add(_tokenBox, 1, 1);
 
         _sslCheck = new CheckBox { Text = Localization.Get("settings_verify_ssl"), AutoSize = true };
-        _sslCheck.ToolTipText = "SSL-Zertifikat überprüfen (deaktivieren bei Self-Signed)";
+        AddTooltip(_sslCheck, "SSL-Zertifikat überprüfen (deaktivieren bei Self-Signed)");
         connTable.Controls.Add(_sslCheck, 0, 2);
         connTable.SetColumnSpan(_sslCheck, 2);
         content.Controls.Add(connTable);
@@ -112,7 +112,7 @@ public class SettingsWindow : Form
         genTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         _autostartCheck = new CheckBox { Text = Localization.Get("settings_autostart"), AutoSize = true };
-        _autostartCheck.ToolTipText = "HA DeskLink automatisch beim Windows-Start starten";
+        AddTooltip(_autostartCheck, "HA DeskLink automatisch beim Windows-Start starten");
         genTable.Controls.Add(_autostartCheck, 0, 0);
         genTable.SetColumnSpan(_autostartCheck, 2);
 
@@ -127,7 +127,7 @@ public class SettingsWindow : Form
 
         genTable.Controls.Add(MakeLabel(Localization.Get("settings_update_channel")), 0, 3);
         _updateChannelBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _updateChannelBox.ToolTipText = "Stabil: Nur getestete Versionen. Pre-Release: Auch Beta-Versionen.";
+        AddTooltip(_updateChannelBox, "Stabil: Nur getestete Versionen. Pre-Release: Auch Beta-Versionen.");
         _updateChannelBox.Items.AddRange(new object[] { Localization.Get("settings_channel_stable"), Localization.Get("settings_channel_prerelease") });
         genTable.Controls.Add(_updateChannelBox, 1, 3);
 
@@ -139,7 +139,7 @@ public class SettingsWindow : Form
 
         genTable.Controls.Add(MakeLabel(Localization.Get("settings_theme")), 0, 5);
         _themeBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _themeBox.ToolTipText = "System: Folgt Windows-Einstellung. Hell/Dunkel: Feste Wahl.";
+        AddTooltip(_themeBox, "System: Folgt Windows-Einstellung. Hell/Dunkel: Feste Wahl.");
         _themeBox.Items.AddRange(new object[] { Localization.Get("settings_theme_system"), Localization.Get("settings_theme_light"), Localization.Get("settings_theme_dark") });
         genTable.Controls.Add(_themeBox, 1, 5);
 
