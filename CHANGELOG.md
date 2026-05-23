@@ -1,3 +1,18 @@
+## v4.3.0 (2026-05-24)
+
+### MQTT Support (optional)
+- MQTT support (optional, auto-configure from Home Assistant)
+- Media Player entity (now playing info, play/pause/volume controls)
+- PC Status binary sensor (instant online/offline detection)
+- Zero-config MQTT setup wizard on first launch
+- MQTT settings in main settings
+- Smart routing: MQTT for sensors + commands, WebSocket for notifications
+- Last Will Testament (instant offline detection)
+- Auto-reconnect with exponential backoff
+
+### 🌍 Neue Lokalisierungs-Keys
+- 27 neue MQTT/MediaPlayer/PCStatus-Keys in allen 6 Sprachen
+
 ## v4.2.0 (2026-05-23)
 
 ### 📊 Neue Sensoren

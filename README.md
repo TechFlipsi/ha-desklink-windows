@@ -1,4 +1,4 @@
-# HA DeskLink v4.2
+# HA DeskLink v4.3
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
@@ -35,6 +35,20 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 - 🔄 **Auto-Update** von GitHub Releases
 - 📌 **System Tray** – läuft minimiert im Hintergrund
 - 🛡️ **Kein Kernel-Treiber** – keine Defender-Warnung, kein WinRing0, keine Admin-Rechte für Grund-Sensoren
+
+## MQTT (v4.3)
+
+HA DeskLink v4.3 bringt **optionale MQTT-Unterstützung** für erweiterte Features:
+
+- 🔊 **Media Player Entity** – Dein PC erscheint als Media Player in Home Assistant mit now-playing Info, Play/Pause und Lautstärke-Regelung
+- 📡 **PC Status Binary Sensor** – Sofortige Online/Offline-Erkennung via Last Will Testament (LWT)
+- ⚡ **Befehle an schlafenden PC** – MQTT-Befehle erreichen den PC auch im Energiesparmodus
+- 🔍 **Automatische Geräteerkennung** – Media Player und PC Status erscheinen automatisch in HA
+- 🔒 **Zuverlässigere Verbindung** – Auto-Reconnect mit exponentiellem Backoff
+- 🪄 **Zero-Config Setup** – Beim ersten Start wird automatisch nach Mosquitto gesucht und die Verbindung eingerichtet
+- 🧭 **Smart Routing** – MQTT für Sensoren + Befehle, WebSocket bleibt für Benachrichtigungen
+
+MQTT ist **optional** – HA DeskLink funktioniert auch ohne MQTT wie gewohnt weiter.
 
 ## Systemanforderungen
 - Windows 10/11 (x64)
