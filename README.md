@@ -1,4 +1,4 @@
-# HA DeskLink v3.1
+# HA DeskLink v4.0
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
@@ -21,7 +21,8 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 ## Features
 - 🌡️ **CPU & GPU Temperatur** – treiberlos via WMI + PerformanceCounter (kein WinRing0, keine Defender-Warnung!)
 - 📊 **Alle Sensoren** – CPU, GPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime
-- 🖥️ **Eingebettetes Dashboard** – WebView2 (mit Auto-Install falls fehlend)
+- 🖥️ **Eingebettetes Dashboard** – WebView2 zeigt HA direkt in der App (Auto-Login via external_auth)
+- 🛡️ **AuthGuard** – IP-Ban-Schutz: Rate-Limiting, Exponential Backoff, automatische Sperr-Pause
 - ⚡ **PC-Befehle aus HA** – Shutdown, Restart, Hibernate, Lock, und mehr per Benachrichtigung
 - 📬 **Benachrichtigungen** – HA sendet Toast-Notifications an den PC
 - 🔔 **Actionable Notifications** – Benachrichtigungen mit Aktions-Buttons
@@ -39,7 +40,7 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 ## Systemanforderungen
 - Windows 10/11 (x64)
 - Kein .NET Runtime nötig – alles im Installer enthalten
-- **Keine Defender-Warnung mehr!** – Ab v3.1: komplett treiberlos, kein WinRing0
+- **Keine Defender-Warnung mehr!** – Ab v4.0: komplett treiberlos, kein WinRing0
 
 ## Installation
 1. Neueste `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/FKirchweger/ha-desklink-dotnet/releases/latest) herunterladen
@@ -218,7 +219,7 @@ HA DeskLink erstellt automatisch Sensoren in HA:
 
 ## Dashboard
 
-Das integrierte Dashboard öffnet HA direkt in der App (WebView2). Falls WebView2 nicht installiert ist, wird automatisch angeboten es herunterzuladen. Alternativ öffnet sich HA im Standard-Browser.
+Das integrierte Dashboard öffnet HA direkt in der App (WebView2) mit **automatischem Login** via offizieller `external_auth`-API. AuthGuard schützt vor IP-Bans durch Rate-Limiting und Exponential Backoff. Falls WebView2 nicht installiert ist, wird automatisch angeboten es herunterzuladen. Alternativ öffnet sich HA im Standard-Browser.
 
 ## Build
 ```bash
@@ -230,7 +231,8 @@ iscc installer.iss
 | Komponente | Library |
 |---|---|
 | Hardware-Sensoren | WMI + PerformanceCounter (treiberlos) |
-| Dashboard | Microsoft.Web.WebView2 |
+| Dashboard | Microsoft.Web.WebView2 + external_auth |
+| AuthGuard | Custom Rate-Limiting + Exponential Backoff |
 | UI | Windows Forms |
 | HTTP | System.Net.Http |
 | Config | System.Text.Json |
