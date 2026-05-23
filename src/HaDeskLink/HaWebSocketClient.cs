@@ -109,9 +109,8 @@ public class HaWebSocketClient : IDisposable
                     if (_authFailCount >= MaxAuthFailures)
                     {
                         _loginBlocked = true;
-                        _trayIcon?.ShowBalloonTip(10000, "HA DeskLink",
-                            Localization.Get("settings_login_failed", "Login fehlgeschlagen. Token ungültig. Bitte überprüfe deinen Home Assistant Token in den Einstellungen."),
-                            ToolTipIcon.Error);
+                        NotificationHandler.ShowNotification("HA DeskLink",
+                            Localization.Get("settings_login_failed", "Login fehlgeschlagen. Token ungültig. Bitte überprüfe deinen Home Assistant Token in den Einstellungen."));
                     }
                     throw new Exception("Auth failed: " + (msg ?? "no response"));
                 }
@@ -131,9 +130,8 @@ public class HaWebSocketClient : IDisposable
                 });
 
                 // Notify user that WebSocket is connected
-                _trayIcon?.ShowBalloonTip(3000, "HA DeskLink",
-                    Localization.Get("ws_connected", "Verbunden mit Home Assistant (WebSocket)"),
-                    ToolTipIcon.Info);
+                NotificationHandler.ShowConnectionToast("HA DeskLink",
+                    Localization.Get("ws_connected", "Verbunden mit Home Assistant (WebSocket)"));
 
                 // Step 5: Listen for notifications
                 await ListenLoop();

@@ -263,7 +263,7 @@ public class DeskLinkApp
             if (!string.IsNullOrEmpty(_config.HaUrl))
                 DashboardWindow.Open(_config.HaUrl);
         });
-        menu.Items.Add(Localization.Get("quickactions_title", "Quick Actions") + " (Ctrl+Shift+H)", null, (s, e) =>
+        menu.Items.Add(Localization.Get("quickactions_title", "Quick Actions") + $" ({FormatHotkey(_config.HotkeyModifiers, _config.HotkeyKey)})", null, (s, e) =>
         {
             try
             {
@@ -404,7 +404,25 @@ public class DeskLinkApp
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "4.0.1";
+        return "4.1.0";
+    }
+
+    /// <summary>
+    /// Format hotkey modifiers + key into human-readable string like "Ctrl+Shift+H"
+    /// </summary>
+    private static string FormatHotkey(string modifiers, string key)
+    {
+        var modStr = modifiers switch
+        {
+            "ctrl_shift" => "Ctrl+Shift",
+            "ctrl_alt" => "Ctrl+Alt",
+            "ctrl" => "Ctrl",
+            "alt" => "Alt",
+            "shift" => "Shift",
+            "none" => "",
+            _ => "Ctrl+Shift"
+        };
+        return string.IsNullOrEmpty(modStr) ? key : $"{modStr}+{key}";
     }
 
     private List<QuickAction> LoadQuickActions()
