@@ -329,7 +329,7 @@ Windows Defender meldet möglicherweise **VulnerableDriver:WinNT/Winring0** für
 
 **Das ist ein Fehlalarm!** Die Erklärung:
 
-- HA DeskLink nutzt **LibreHardwareMonitorLib** für Hardware-Sensoren (CPU-Temperatur, GPU-Temperatur, Lüfter-Drehzahl)
+- HA DeskLink nutzt **WMI + PerformanceCounter** für Hardware-Sensoren (CPU-Temperatur, GPU-Temperatur, Lüfter-Drehzahl) – komplett treiberlos, kein WinRing0
 - Diese Bibliothek verwendet den **WinRing0-Treiber**, um Hardware-Sensoren auf Kernel-Ebene auszulesen
 - WinRing0 ist ein **legitimer, Open-Source-Treiber** – er braucht Kernel-Zugriff, um Temperatursensoren zu lesen
 - Microsoft Defender flagt alle Kernel-Treiber als „potenziell gefährlich", auch wenn sie harmlos sind
@@ -719,7 +719,7 @@ Windows Defender may report **VulnerableDriver:WinNT/Winring0** for the file `HA
 
 **This is a false positive!** Here's why:
 
-- HA DeskLink uses **LibreHardwareMonitorLib** for hardware sensors (CPU temp, GPU temp, fan speed)
+- HA DeskLink uses **WMI + PerformanceCounter** for hardware sensors (CPU temp, GPU temp, fan speed) – completely driverless, no WinRing0
 - This library uses the **WinRing0 driver** to read hardware sensors at kernel level
 - WinRing0 is a **legitimate, open-source driver** – it needs kernel access to read temperature sensors
 - Microsoft Defender flags all kernel drivers as "potentially dangerous", even when they're harmless

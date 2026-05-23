@@ -1,4 +1,4 @@
-# HA DeskLink v2.0 - C# / .NET 8
+# HA DeskLink v4.0 - C# / .NET 8
 
 Windows Companion App für Home Assistant – nativ, schnell, ohne Python.
 
@@ -54,4 +54,4 @@ dotnet publish src/HaDeskLink -c Release -r win-x64 --self-contained -p:PublishS
 ```
 
 ## Status
-🚧 In Entwicklung – v2.0.0
+✅ Veröffentlicht – v4.0.0
