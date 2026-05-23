@@ -35,13 +35,17 @@ public static class CommandHandler
                 Process.Start("shutdown", "/r /t 30 /c \"HA DeskLink: PC wird neu gestartet\"");
                 break;
             case "hibernate":
+                SetSuspendState(true, false, false);
+                break;
             case "sleep":
-                Process.Start("shutdown", "/h");
+                SetSuspendState(false, false, false);
                 break;
             case "lock":
+            case "lock_screen":
                 LockWorkStation();
                 break;
             case "mute":
+            case "volume_mute":
                 ToggleMute();
                 break;
             case "volume_up":
@@ -49,6 +53,15 @@ public static class CommandHandler
                 break;
             case "volume_down":
                 VolumeDown();
+                break;
+            case "media_play_pause":
+                MediaPlayPause();
+                break;
+            case "media_next":
+                MediaNext();
+                break;
+            case "media_previous":
+                MediaPrevious();
                 break;
             case "monitor_off":
                 MonitorOff();
@@ -89,6 +102,9 @@ public static class CommandHandler
     [DllImport("user32.dll")]
     private static extern bool LockWorkStation();
 
+    [DllImport("powrprof.dll", SetLastError = true)]
+    private static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+
     // Volume control via key simulation
     [DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
@@ -98,6 +114,9 @@ public static class CommandHandler
     private const byte VK_VOLUME_DOWN = 0xAE;
     private const byte VK_BRIGHTNESS_UP = 0x6F;   // Monitor brightness up
     private const byte VK_BRIGHTNESS_DOWN = 0x6E;  // Monitor brightness down
+    private const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
+    private const byte VK_MEDIA_NEXT_TRACK = 0xB0;
+    private const byte VK_MEDIA_PREV_TRACK = 0xB1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
 
     private static void ToggleMute()
@@ -122,6 +141,24 @@ public static class CommandHandler
             keybd_event(VK_VOLUME_DOWN, 0, 0, 0);
             keybd_event(VK_VOLUME_DOWN, 0, KEYEVENTF_KEYUP, 0);
         }
+    }
+
+    private static void MediaPlayPause()
+    {
+        keybd_event(VK_MEDIA_PLAY_PAUSE, 0, 0, 0);
+        keybd_event(VK_MEDIA_PLAY_PAUSE, 0, KEYEVENTF_KEYUP, 0);
+    }
+
+    private static void MediaNext()
+    {
+        keybd_event(VK_MEDIA_NEXT_TRACK, 0, 0, 0);
+        keybd_event(VK_MEDIA_NEXT_TRACK, 0, KEYEVENTF_KEYUP, 0);
+    }
+
+    private static void MediaPrevious()
+    {
+        keybd_event(VK_MEDIA_PREV_TRACK, 0, 0, 0);
+        keybd_event(VK_MEDIA_PREV_TRACK, 0, KEYEVENTF_KEYUP, 0);
     }
 
     private static void BrightnessUp()

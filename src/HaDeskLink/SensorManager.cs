@@ -77,6 +77,24 @@ public class SensorManager : IDisposable
         var brightness = GetBrightness();
         if (brightness != null) sensors.Add(brightness);
 
+        // Idle time (seconds)
+        var idleTime = GetIdleTimeSensor();
+        if (idleTime != null) sensors.Add(idleTime);
+
+        // Audio sensors (volume + mute)
+        sensors.AddRange(GetAudioSensors());
+
+        // Mic active
+        var micActive = GetMicActive();
+        if (micActive != null) sensors.Add(micActive);
+
+        // Webcam active
+        var webcamActive = GetWebcamActive();
+        if (webcamActive != null) sensors.Add(webcamActive);
+
+        // GPU memory
+        sensors.AddRange(GetGpuMemorySensors());
+
         // Network throughput
         sensors.AddRange(GetNetworkSensors());
 
@@ -1023,6 +1041,337 @@ public class SensorManager : IDisposable
         }
         catch { }
         return null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Idle time sensor (seconds)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static SensorData? GetIdleTimeSensor()
+    {
+        try
+        {
+            var idleMs = GetIdleTimeMs();
+            var seconds = Math.Round(idleMs / 1000.0, 1);
+            return new SensorData("idle_time", "Idle Time", seconds, "s",
+                icon: "mdi:timer-outline", stateClass: "measurement");
+        }
+        catch { return null; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Audio sensors (volume, mute) via IAudioEndpointVolume
+    // ─────────────────────────────────────────────────────────────────
+
+    [DllImport("ole32.dll")]
+    private static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
+
+    private const uint COINIT_MULTITHREADED = 0x0;
+
+    // COM interface GUIDs and IIDs for MMDevice API
+    private static readonly Guid CLSID_MMDeviceEnumerator = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
+    private static readonly Guid IID_IMMDeviceEnumerator = new Guid("A95664D2-9614-4F35-A746-DE8DB63617E6");
+    private static readonly Guid IID_IAudioEndpointVolume = new Guid("5CDF2C82-841E-4546-9722-0CF74078229A");
+
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+    private class MMDeviceEnumerator { }
+
+    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDeviceEnumerator
+    {
+        void _VtblGap0_1(); // Not needed
+        [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IntPtr ppDevice);
+    }
+
+    [ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioEndpointVolume
+    {
+        void _VtblGap0_2(); // RegisterControlChangeNotify, UnregisterControlChangeNotify
+        [PreserveSig] int GetChannelCount(out uint channelCount);
+        [PreserveSig] int SetMasterVolumeLevelScalar(float fLevel, IntPtr pguidEventContext);
+        [PreserveSig] int GetMasterVolumeLevelScalar(out float pfLevel);
+        [PreserveSig] int SetMasterVolumeLevel(float fLevelDB, IntPtr pguidEventContext);
+        [PreserveSig] int GetMasterVolumeLevel(out float pfLevelDB);
+        [PreserveSig] int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, IntPtr pguidEventContext);
+        [PreserveSig] int GetMute([MarshalAs(UnmanagedType.Bool)] out bool pbMute);
+    }
+
+    private enum EDataFlow { eRender = 0, eCapture = 1, eAll = 2 }
+    private enum ERole { eConsole = 0, eMultimedia = 1, eCommunications = 2 }
+
+    private static List<SensorData> GetAudioSensors()
+    {
+        var result = new List<SensorData>();
+        try
+        {
+            CoInitializeEx(IntPtr.Zero, COINIT_MULTITHREADED);
+            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+            if (enumerator.GetDefaultAudioEndpoint((int)EDataFlow.eRender, (int)ERole.eMultimedia, out var devicePtr) == 0)
+            {
+                var volumeInterface = Marshal.GetObjectForIUnknown(devicePtr);
+                var volume = (IAudioEndpointVolume)volumeInterface;
+
+                // Volume level
+                var hr = volume.GetMasterVolumeLevelScalar(out float level);
+                if (hr == 0)
+                {
+                    var volPct = (int)Math.Round(level * 100);
+                    result.Add(new SensorData("audio_volume", "Audio Volume", volPct, "%",
+                        icon: "mdi:volume-high", stateClass: "measurement"));
+                }
+
+                // Mute
+                hr = volume.GetMute(out bool mute);
+                if (hr == 0)
+                {
+                    result.Add(new SensorData("audio_mute", "Audio Mute", mute ? "on" : "off",
+                        deviceClass: "plug", icon: "mdi:volume-off"));
+                }
+
+                Marshal.ReleaseComObject(volume);
+                Marshal.ReleaseComObject(devicePtr);
+            }
+            Marshal.ReleaseComObject(enumerator);
+        }
+        catch { }
+        return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Microphone active sensor (check capture audio sessions)
+    // ─────────────────────────────────────────────────────────────────
+
+    [ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionManager2
+    {
+        void _VtblGap0_2(); // GetAudioSessionControl, GetSimpleAudioVolume
+        [PreserveSig] int GetSessionEnumerator(out IntPtr sessionEnum);
+    }
+
+    [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionEnumerator
+    {
+        [PreserveSig] int GetCount(out int count);
+        [PreserveSig] int GetSession(int index, out IntPtr session);
+    }
+
+    [ComImport, Guid("BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioSessionControl2
+    {
+        void _VtblGap0_7(); // State, DisplayName, IconPath, GroupingParam, GetProcessId
+        [PreserveSig] int GetProcessId(out uint processId);
+        [PreserveSig] int GetState(out int state);
+    }
+
+    private static SensorData? GetMicActive()
+    {
+        try
+        {
+            CoInitializeEx(IntPtr.Zero, COINIT_MULTITHREADED);
+            var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
+
+            var hr = enumerator.GetDefaultAudioEndpoint((int)EDataFlow.eCapture, (int)ERole.eConsole, out var devicePtr);
+            if (hr != 0)
+            {
+                Marshal.ReleaseComObject(enumerator);
+                return null;
+            }
+
+            var sessionManagerGuid = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
+            var sessionManagerPtr = IntPtr.Zero;
+            var sessionManager2 = IntPtr.Zero;
+
+            try
+            {
+                var iidIAudioSessionManager2 = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
+                hr = Marshal.QueryInterface(devicePtr, ref iidIAudioSessionManager2, out sessionManager2);
+                if (hr != 0)
+                {
+                    return new SensorData("mic_active", "Microphone Active", "off",
+                        deviceClass: "plug", icon: "mdi:microphone");
+                }
+
+                var sessionManager = Marshal.GetObjectForIUnknown(sessionManager2) as IAudioSessionManager2;
+                if (sessionManager == null)
+                {
+                    return new SensorData("mic_active", "Microphone Active", "off",
+                        deviceClass: "plug", icon: "mdi:microphone");
+                }
+
+                if (sessionManager.GetSessionEnumerator(out var sessionEnumPtr) != 0)
+                {
+                    return new SensorData("mic_active", "Microphone Active", "off",
+                        deviceClass: "plug", icon: "mdi:microphone");
+                }
+
+                var sessionEnum = Marshal.GetObjectForIUnknown(sessionEnumPtr) as IAudioSessionEnumerator;
+                if (sessionEnum == null)
+                {
+                    return new SensorData("mic_active", "Microphone Active", "off",
+                        deviceClass: "plug", icon: "mdi:microphone");
+                }
+
+                sessionEnum.GetCount(out var count);
+                for (int i = 0; i < count; i++)
+                {
+                    if (sessionEnum.GetSession(i, out var sessionPtr) == 0)
+                    {
+                        var session = Marshal.GetObjectForIUnknown(sessionPtr) as IAudioSessionControl2;
+                        if (session != null && session.GetState(out var state) == 0)
+                        {
+                            // State: 0 = inactive, 1 = active, 2 = expired
+                            if (state == 1)
+                            {
+                                Marshal.ReleaseComObject(session);
+                                Marshal.ReleaseComObject(sessionEnum);
+                                Marshal.ReleaseComObject(sessionManager);
+                                Marshal.ReleaseComObject(devicePtr);
+                                Marshal.ReleaseComObject(enumerator);
+                                return new SensorData("mic_active", "Microphone Active", "on",
+                                    deviceClass: "plug", icon: "mdi:microphone");
+                            }
+                        }
+                        Marshal.ReleaseComObject(session);
+                    }
+                }
+
+                Marshal.ReleaseComObject(sessionEnum);
+                Marshal.ReleaseComObject(sessionManager);
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(devicePtr);
+                Marshal.ReleaseComObject(enumerator);
+            }
+        }
+        catch { }
+
+        return new SensorData("mic_active", "Microphone Active", "off",
+            deviceClass: "plug", icon: "mdi:microphone");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Webcam active sensor (WMI Win32_PnPEntity for imaging devices)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static SensorData? GetWebcamActive()
+    {
+        try
+        {
+            using var searcher = new ManagementObjectSearcher(
+                "SELECT Name, Status FROM Win32_PnPEntity WHERE PNPClass = 'Image' OR PNPClass = 'Camera'");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                var status = obj["Status"]?.ToString() ?? "";
+                // Device is present and working
+                if (status.Equals("OK", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new SensorData("webcam_active", "Webcam Active", "on",
+                        deviceClass: "plug", icon: "mdi:webcam");
+                }
+            }
+        }
+        catch { }
+        return new SensorData("webcam_active", "Webcam Active", "off",
+            deviceClass: "plug", icon: "mdi:webcam");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  GPU memory sensors (nvidia-smi / rocm-smi)
+    // ─────────────────────────────────────────────────────────────────
+
+    private static List<SensorData> GetGpuMemorySensors()
+    {
+        var result = new List<SensorData>();
+        var gpuVendor = GetGpuVendor();
+
+        try
+        {
+            if (gpuVendor == "NVIDIA")
+            {
+                // nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits
+                var psi = new ProcessStartInfo("nvidia-smi",
+                    "--query-gpu=memory.used,memory.total --format=csv,noheader,nounits")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                var output = proc?.StandardOutput.ReadToEnd()?.Trim();
+                proc?.WaitForExit(3000);
+
+                if (!string.IsNullOrEmpty(output))
+                {
+                    // Parse "used, total" (both in MiB)
+                    var parts = output.Split(',');
+                    if (parts.Length >= 2 &&
+                        double.TryParse(parts[0].Trim(), out var used) &&
+                        double.TryParse(parts[1].Trim(), out var total))
+                    {
+                        result.Add(new SensorData("gpu_memory_used", "GPU Memory Used",
+                            Math.Round(used, 0), "MB",
+                            icon: "mdi:memory", stateClass: "measurement"));
+                        result.Add(new SensorData("gpu_memory_total", "GPU Memory Total",
+                            Math.Round(total, 0), "MB",
+                            icon: "mdi:memory"));
+                    }
+                }
+            }
+            else if (gpuVendor == "AMD")
+            {
+                // Try rocm-smi
+                var psi = new ProcessStartInfo("rocm-smi",
+                    "--showmeminfo vram --csv")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                var output = proc?.StandardOutput.ReadToEnd()?.Trim();
+                proc?.WaitForExit(3000);
+
+                if (!string.IsNullOrEmpty(output))
+                {
+                    // Parse CSV output looking for used/total VRAM
+                    var lines = output.Split('\n');
+                    foreach (var line in lines)
+                    {
+                        if (line.Contains("VRAM", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("memory", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = line.Split(',');
+                            // Try to find used and total values
+                            double used = 0, total = 0;
+                            for (int i = 0; i < parts.Length; i++)
+                            {
+                                var val = parts[i].Trim();
+                                if (double.TryParse(val, out var num))
+                                {
+                                    if (used == 0) used = num;
+                                    else if (total == 0) total = num;
+                                }
+                            }
+                            if (used > 0 && total > 0)
+                            {
+                                result.Add(new SensorData("gpu_memory_used", "GPU Memory Used",
+                                    Math.Round(used, 0), "MB",
+                                    icon: "mdi:memory", stateClass: "measurement"));
+                                result.Add(new SensorData("gpu_memory_total", "GPU Memory Total",
+                                    Math.Round(total, 0), "MB",
+                                    icon: "mdi:memory"));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // Intel: skip
+        }
+        catch { }
+
+        return result;
     }
 
     // ─────────────────────────────────────────────────────────────────
