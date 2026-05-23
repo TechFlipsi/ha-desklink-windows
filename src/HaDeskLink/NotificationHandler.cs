@@ -134,7 +134,7 @@ public static class NotificationHandler
 /// </summary>
 public class NotificationToast : Form
 {
-    private readonly Timer _autoCloseTimer;
+    private readonly System.Windows.Forms.Timer _autoCloseTimer;
     private readonly List<NotificationAction>? _actions;
     private readonly string? _commandOnAction;
 
@@ -157,7 +157,7 @@ public class NotificationToast : Form
 
         BuildContent(title, message, actions, accentOverride ?? Color.FromArgb(66, 133, 244));
 
-        _autoCloseTimer = new Timer { Interval = 8000 };
+        _autoCloseTimer = new System.Windows.Forms.Timer { Interval = 8000 };
         _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
         _autoCloseTimer.Start();
 
