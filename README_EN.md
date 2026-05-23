@@ -14,8 +14,7 @@ Written in **C# / .NET 8** – driverless sensor readings via WMI + PerformanceC
 ## Features
 - 🌡️ **CPU & GPU Temperature** – driverless via WMI + PerformanceCounter (no WinRing0, no Defender warning!)
 - 📊 **All Sensors** – CPU, RAM, all drives (C:, D:, etc.), Battery, Uptime
-- 🖥️ **Embedded Dashboard** – WebView2 shows HA right in the app (auto-login via external_auth)
-- 🛡️ **AuthGuard** – IP-ban protection: rate limiting, exponential backoff, automatic lock pause
+- 🖥️ **Embedded Dashboard** – WebView2 shows HA right in the app (login once, session persists)
 - ⚡ **PC Commands from HA** – Shutdown, Restart, Hibernate, Lock, and more via notifications
 - 📬 **Notifications** – HA sends toast notifications to your PC
 - 🔌 **mobile_app Protocol** – identical to the mobile app, no extra HA configuration needed
@@ -177,7 +176,7 @@ HA DeskLink automatically creates sensors in HA:
 
 ## Dashboard
 
-The integrated dashboard opens HA directly in the app (WebView2) with **automatic login** via the official `external_auth` API. AuthGuard protects against IP bans through rate limiting and exponential backoff. If WebView2 is not installed, it automatically offers to download it. Alternatively, HA opens in the default browser.
+The integrated dashboard opens HA directly in the app (WebView2). On first visit you see the normal HA login form — log in once with username & password, after that the session persists (just like in a browser). If WebView2 is not installed, it automatically offers to download it. Alternatively, HA opens in the default browser.
 
 ## Build
 ```bash
@@ -189,8 +188,7 @@ iscc installer.iss
 | Component | Library |
 |---|---|
 | Hardware Sensors | WMI + PerformanceCounter (driverless) |
-| Dashboard | Microsoft.Web.WebView2 + external_auth |
-| AuthGuard | Custom rate-limiting + exponential backoff |
+| Dashboard | Microsoft.Web.WebView2 (session login) |
 | UI | Windows Forms |
 | HTTP | System.Net.Http |
 | Config | System.Text.Json |

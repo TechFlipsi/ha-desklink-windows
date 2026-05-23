@@ -1,8 +1,7 @@
 # Changelog
 
 ## [v4.0.0] - 2026-05-23
-- 🆕 **Neu:** Embedded HA Dashboard mit WebView (Windows: WebView2, Linux: WebKitGTK) mit external_auth Auto-Login
-- 🆕 **Neu:** AuthGuard – IP-Ban-Schutz mit Rate-Limiting und Retry-Backoff
+- 🆕 **Neu:** Embedded HA Dashboard mit WebView2 (einmaliges Login mit Benutzername & Passwort, Session bleibt erhalten)
 - 🎨 **Redesign:** Moderne Notification-Popups (Dark Theme, abgerundete Ecken)
 - 🎨 **Redesign:** Modernisierte Einstellungen
 - ⚠️ **Breaking:** LibreHardwareMonitorLib + WinRing0 komplett entfernt → treiberloser Sensor-Stack

@@ -21,8 +21,7 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 ## Features
 - 🌡️ **CPU & GPU Temperatur** – treiberlos via WMI + PerformanceCounter (kein WinRing0, keine Defender-Warnung!)
 - 📊 **Alle Sensoren** – CPU, GPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime
-- 🖥️ **Eingebettetes Dashboard** – WebView2 zeigt HA direkt in der App (Auto-Login via external_auth)
-- 🛡️ **AuthGuard** – IP-Ban-Schutz: Rate-Limiting, Exponential Backoff, automatische Sperr-Pause
+- 🖥️ **Eingebettetes Dashboard** – WebView2 zeigt HA direkt in der App (einmaliges Login, Session bleibt erhalten)
 - ⚡ **PC-Befehle aus HA** – Shutdown, Restart, Hibernate, Lock, und mehr per Benachrichtigung
 - 📬 **Benachrichtigungen** – HA sendet Toast-Notifications an den PC
 - 🔔 **Actionable Notifications** – Benachrichtigungen mit Aktions-Buttons
@@ -219,7 +218,7 @@ HA DeskLink erstellt automatisch Sensoren in HA:
 
 ## Dashboard
 
-Das integrierte Dashboard öffnet HA direkt in der App (WebView2) mit **automatischem Login** via offizieller `external_auth`-API. AuthGuard schützt vor IP-Bans durch Rate-Limiting und Exponential Backoff. Falls WebView2 nicht installiert ist, wird automatisch angeboten es herunterzuladen. Alternativ öffnet sich HA im Standard-Browser.
+Das integrierte Dashboard öffnet HA direkt in der App (WebView2). Der erste Besuch zeigt das normale HA-Login-Formular — einmalig mit Benutzername & Passwort anmelden, danach bleibt die Session erhalten (wie im Browser). Falls WebView2 nicht installiert ist, wird automatisch angeboten es herunterzuladen. Alternativ öffnet sich HA im Standard-Browser.
 
 ## Build
 ```bash
@@ -231,8 +230,7 @@ iscc installer.iss
 | Komponente | Library |
 |---|---|
 | Hardware-Sensoren | WMI + PerformanceCounter (treiberlos) |
-| Dashboard | Microsoft.Web.WebView2 + external_auth |
-| AuthGuard | Custom Rate-Limiting + Exponential Backoff |
+| Dashboard | Microsoft.Web.WebView2 (Session-Login) |
 | UI | Windows Forms |
 | HTTP | System.Net.Http |
 | Config | System.Text.Json |
