@@ -37,6 +37,15 @@ public class SettingsWindow : Form
     private ListBox _qaList = null!;
     private List<(string entityId, string friendlyName)> _entities = new();
 
+    // MQTT settings controls
+    private CheckBox _mqttEnabledCheck = null!;
+    private TextBox _mqttBrokerBox = null!;
+    private TextBox _mqttPortBox = null!;
+    private TextBox _mqttUserBox = null!;
+    private TextBox _mqttPassBox = null!;
+    private CheckBox _mqttSslCheck = null!;
+    private Label _mqttStatusLabel = null!;
+
     // Dark theme colors
     private static readonly Color DarkBg = Color.FromArgb(32, 32, 32);
     private static readonly Color DarkFg = Color.FromArgb(230, 230, 230);
@@ -163,6 +172,66 @@ public class SettingsWindow : Form
         genTable.Controls.Add(settingsPanel, 1, 8);
 
         content.Controls.Add(genTable);
+
+        // ═══════════════════════════════════════════
+        // 📡 MQTT-EINSTELLUNGEN
+        // ═══════════════════════════════════════════
+        content.Controls.Add(MakeSectionHeader("📡 " + Localization.Get("mqtt_settings")));
+
+        var mqttTable = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 8, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 5, 0, 15) };
+        mqttTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        mqttTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        _mqttEnabledCheck = new CheckBox { Text = Localization.Get("mqtt_enabled"), AutoSize = true };
+        AddTooltip(_mqttEnabledCheck, "MQTT für Echtzeit-Mediensteuerung und schnelle Sensor-Updates aktivieren");
+        mqttTable.Controls.Add(_mqttEnabledCheck, 0, 0);
+        mqttTable.SetColumnSpan(_mqttEnabledCheck, 2);
+
+        mqttTable.Controls.Add(MakeLabel(Localization.Get("mqtt_broker")), 0, 1);
+        _mqttBrokerBox = new TextBox { Dock = DockStyle.Fill };
+        AddTooltip(_mqttBrokerBox, "MQTT-Broker Hostname (z.B. homeassistant.local)");
+        mqttTable.Controls.Add(_mqttBrokerBox, 1, 1);
+
+        mqttTable.Controls.Add(MakeLabel(Localization.Get("mqtt_port")), 0, 2);
+        _mqttPortBox = new TextBox { Dock = DockStyle.Fill, Text = "1883" };
+        AddTooltip(_mqttPortBox, "MQTT-Broker Port (Standard: 1883, SSL: 8883)");
+        mqttTable.Controls.Add(_mqttPortBox, 1, 2);
+
+        mqttTable.Controls.Add(MakeLabel(Localization.Get("mqtt_username")), 0, 3);
+        _mqttUserBox = new TextBox { Dock = DockStyle.Fill };
+        AddTooltip(_mqttUserBox, "MQTT-Benutzername (optional, leer lassen bei anonymem Zugang)");
+        mqttTable.Controls.Add(_mqttUserBox, 1, 3);
+
+        mqttTable.Controls.Add(MakeLabel(Localization.Get("mqtt_password")), 0, 4);
+        _mqttPassBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
+        AddTooltip(_mqttPassBox, "MQTT-Passwort (optional)");
+        mqttTable.Controls.Add(_mqttPassBox, 1, 4);
+
+        _mqttSslCheck = new CheckBox { Text = Localization.Get("mqtt_use_ssl"), AutoSize = true };
+        AddTooltip(_mqttSslCheck, "SSL/TLS für MQTT-Verbindung aktivieren");
+        mqttTable.Controls.Add(_mqttSslCheck, 0, 5);
+        mqttTable.SetColumnSpan(_mqttSslCheck, 2);
+
+        // Auto-configure button
+        var mqttAutoBtn = MakeButton("🔧 " + Localization.Get("mqtt_auto_configure"), AccentBlue, OnMqttAutoConfigure);
+        AddTooltip(mqttAutoBtn, "MQTT-Broker automatisch über Home Assistant REST API konfigurieren");
+        mqttTable.Controls.Add(mqttAutoBtn, 0, 6);
+        mqttTable.SetColumnSpan(mqttAutoBtn, 2);
+
+        // Status label
+        _mqttStatusLabel = new Label
+        {
+            Text = "",
+            Font = new Font("Segoe UI", 9f),
+            ForeColor = Color.Gray,
+            AutoSize = true,
+            Margin = new Padding(0, 2, 0, 0),
+        };
+        mqttTable.Controls.Add(_mqttStatusLabel, 0, 7);
+        mqttTable.SetColumnSpan(_mqttStatusLabel, 2);
+
+        content.Controls.Add(mqttTable);
+        _mqttEnabledCheck.CheckedChanged += (s, e) => UpdateMqttStatusLabel();
 
         // ═══════════════════════════════════════════
         // 🔧 AKTIONEN — klar beschriftet, kein Duplikat
@@ -366,6 +435,16 @@ public class SettingsWindow : Form
             0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
         };
         _config.HotkeySettingsKey = _hotkeySettingsKeyBox.SelectedItem?.ToString() ?? "S";
+
+        // MQTT settings
+        _config.MqttEnabled = _mqttEnabledCheck.Checked;
+        _config.MqttBroker = _mqttBrokerBox.Text.Trim();
+        if (int.TryParse(_mqttPortBox.Text.Trim(), out var mqttPort))
+            _config.MqttPort = mqttPort;
+        _config.MqttUsername = _mqttUserBox.Text.Trim();
+        _config.MqttPassword = _mqttPassBox.Text;
+        _config.MqttUseSsl = _mqttSslCheck.Checked;
+        _config.MqttAutoConfigured = false; // manual save
 
         _config.Save();
         if (_config.Autostart) Autostart.Enable(); else Autostart.Disable();
@@ -756,6 +835,95 @@ public class SettingsWindow : Form
         };
         var settingsKeyIndex = _hotkeySettingsKeyBox.Items.IndexOf(_config.HotkeySettingsKey.ToUpper());
         _hotkeySettingsKeyBox.SelectedIndex = settingsKeyIndex >= 0 ? settingsKeyIndex : 0;
+
+        // MQTT settings
+        _mqttEnabledCheck.Checked = _config.MqttEnabled;
+        _mqttBrokerBox.Text = _config.MqttBroker;
+        _mqttPortBox.Text = _config.MqttPort.ToString();
+        _mqttUserBox.Text = _config.MqttUsername;
+        _mqttPassBox.Text = _config.MqttPassword;
+        _mqttSslCheck.Checked = _config.MqttUseSsl;
+        UpdateMqttStatusLabel();
+    }
+
+    private void UpdateMqttStatusLabel()
+    {
+        if (!_mqttEnabledCheck.Checked)
+        {
+            _mqttStatusLabel.Text = "○ " + Localization.Get("mqtt_disabled");
+            _mqttStatusLabel.ForeColor = Color.Gray;
+        }
+        else if (_config.MqttBroker.Length > 0)
+        {
+            _mqttStatusLabel.Text = "● " + Localization.Get("mqtt_connected") + $" ({_config.MqttBroker}:{_config.MqttPort})";
+            _mqttStatusLabel.ForeColor = SuccessGreen;
+        }
+        else
+        {
+            _mqttStatusLabel.Text = "● " + Localization.Get("mqtt_disconnected");
+            _mqttStatusLabel.ForeColor = WarningOrange;
+        }
+    }
+
+    private async void OnMqttAutoConfigure(object? sender, EventArgs e)
+    {
+        var btn = (Button)sender!;
+        btn.Enabled = false;
+        btn.Text = "Konfiguriere...";
+        _mqttStatusLabel.Text = "⏳ " + Localization.Get("mqtt_connecting");
+        _mqttStatusLabel.ForeColor = Color.Gray;
+
+        try
+        {
+            var result = await System.Threading.Tasks.Task.Run(() =>
+                MqttSetupHelper.AutoConfigureAsync(_config.HaUrl, _config.HaToken));
+
+            if (result.Success)
+            {
+                _mqttEnabledCheck.Checked = true;
+                _mqttBrokerBox.Text = result.BrokerHost ?? "";
+                _mqttPortBox.Text = result.BrokerPort.ToString();
+                _mqttUserBox.Text = result.Username ?? "";
+                _mqttPassBox.Text = result.Password ?? "";
+                _mqttSslCheck.Checked = result.UseSsl;
+                _config.MqttEnabled = true;
+                _config.MqttBroker = result.BrokerHost ?? "";
+                _config.MqttPort = result.BrokerPort;
+                _config.MqttUsername = result.Username ?? "";
+                _config.MqttPassword = result.Password ?? "";
+                _config.MqttUseSsl = result.UseSsl;
+                _config.MqttAutoConfigured = true;
+                _config.Save();
+                _mqttStatusLabel.Text = "✓ MQTT erfolgreich konfiguriert!";
+                _mqttStatusLabel.ForeColor = SuccessGreen;
+            }
+            else if (result.MosquittoNotInstalled)
+            {
+                _mqttStatusLabel.Text = "⚠️ Mosquitto nicht gefunden. Bitte in HA installieren.";
+                _mqttStatusLabel.ForeColor = WarningOrange;
+                MessageBox.Show(
+                    "Mosquitto MQTT-Broker wurde nicht gefunden.\n\n" +
+                    "Bitte installiere den Mosquitto Broker Add-on in Home Assistant:\n" +
+                    "Einstellungen → Add-ons → Mosquitto Broker → Installieren & Starten\n\n" +
+                    "Oder konfiguriere den MQTT-Broker manuell.",
+                    "MQTT nicht verfügbar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                _mqttStatusLabel.Text = $"⚠️ Konfiguration fehlgeschlagen: {result.ErrorMessage ?? "Unbekannter Fehler"}";
+                _mqttStatusLabel.ForeColor = WarningOrange;
+            }
+        }
+        catch (Exception ex)
+        {
+            _mqttStatusLabel.Text = $"✗ Fehler: {ex.Message}";
+            _mqttStatusLabel.ForeColor = DangerRed;
+        }
+        finally
+        {
+            btn.Enabled = true;
+            btn.Text = "🔧 " + Localization.Get("mqtt_auto_configure");
+        }
     }
 
     private static SettingsWindow? _instance;

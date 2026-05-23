@@ -36,6 +36,10 @@ public class DeskLinkApp
     private QuickActionHandler? _dashboardHotkey;
     private QuickActionHandler? _settingsHotkey;
     internal HaWebSocketClient? _wsClient;
+    private MqttClient? _mqttClient;
+    private MediaPlayer? _mediaPlayer;
+    private System.Threading.Timer? _mediaTimer;
+    private bool _wasMqttConnected;
 
     public DeskLinkApp(Config config)
     {
@@ -98,6 +102,49 @@ public class DeskLinkApp
         // Start sensor loop
         if (_sensors != null)
             Task.Run(() => SensorLoop(_cts.Token), _cts.Token);
+
+        // ── MQTT smart routing ──────────────────────────────────────
+        if (_config.MqttEnabled && !string.IsNullOrEmpty(_config.MqttBroker) && _config.MqttPort > 0)
+        {
+            var configDir = Config.GetConfigDir();
+            var password = string.IsNullOrEmpty(_config.MqttPasswordEncrypted) ? _config.MqttPassword : _config.MqttPassword;
+            _mqttClient = new MqttClient(_config.MqttBroker, _config.MqttPort,
+                string.IsNullOrEmpty(_config.MqttUsername) ? null : _config.MqttUsername,
+                string.IsNullOrEmpty(password) ? null : password,
+                _config.MqttUseSsl, configDir, GetVersion(),
+                onCommandReceived: cmd =>
+                {
+                    try { CommandHandler.Execute(cmd); }
+                    catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT Cmd] Error: {ex}\n"); }
+                });
+            Task.Run(() => MqttConnectAsync(_cts.Token), _cts.Token);
+        }
+
+        // ── Media player state polling via MQTT ─────────────────────
+        try
+        {
+            _mediaPlayer = new MediaPlayer();
+            _mediaTimer = new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    if (_mqttClient?.IsConnected == true)
+                    {
+                        var mediaState = _mediaPlayer.GetCurrentMediaState();
+                        var attrs = System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            title = mediaState.Title,
+                            artist = mediaState.Artist,
+                            album = mediaState.Album,
+                            source = mediaState.Source
+                        });
+                        await _mqttClient.PublishMediaStateAsync(mediaState.State, attrs);
+                    }
+                }
+                catch { }
+            }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        }
+        catch { }
 
         // Check for updates and auto-install
         var channel = _config.UpdateChannel;
@@ -189,7 +236,40 @@ public class DeskLinkApp
 
         Application.Run();
 
+        // Cancel all background tasks first
         _cts.Cancel();
+        _mediaTimer?.Dispose();
+        _mediaPlayer?.Dispose();
+
+        // Send pc_status = "off" before shutting down
+        try
+        {
+            var pcOff = new SensorData("pc_status", "PC Status", "off",
+                deviceClass: "connectivity", icon: "mdi:desktop-classic")
+            {
+                SensorKind = SensorType.BinarySensor,
+                EntityCategory = null
+            };
+            _api.UpdateSensorStatesAsync(new List<SensorData> { pcOff }).GetAwaiter().GetResult();
+        }
+        catch { }
+
+        // MQTT: publish pc_status OFF + disconnect
+        try
+        {
+            if (_mqttClient?.IsConnected == true)
+            {
+                var pcOff = new SensorData("pc_status", "PC Status", "off",
+                    deviceClass: "connectivity", icon: "mdi:desktop-classic")
+                {
+                    SensorKind = SensorType.BinarySensor
+                };
+                _mqttClient.PublishSensorStateAsync(pcOff).GetAwaiter().GetResult();
+                _mqttClient.DisconnectAsync().GetAwaiter().GetResult();
+                _mqttClient.Dispose();
+            }
+        }
+        catch { }
         _quickActionHandler?.Dispose();
         _dashboardHotkey?.Dispose();
         _settingsHotkey?.Dispose();
@@ -232,7 +312,17 @@ public class DeskLinkApp
                     }
                 }
                 if (changed.Count > 0)
+                {
+                    // Always send via webhook (keeps mobile_app registration intact)
                     await _api.UpdateSensorStatesAsync(changed);
+
+                    // Smart routing: also publish via MQTT if connected
+                    if (_mqttClient?.IsConnected == true)
+                    {
+                        try { await _mqttClient.PublishSensorStatesAsync(changed); }
+                        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT Sensor] Publish error: {ex}\n"); }
+                    }
+                }
             }
             catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[SensorLoop] Update error: {ex}\n"); }
             try
@@ -362,6 +452,53 @@ public class DeskLinkApp
         catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[Reconnect] Error: {ex}\n"); }
     }
 
+    // ── MQTT Smart Routing ────────────────────────────────────────
+
+    /// <summary>
+    /// Connect to MQTT, publish discovery on connect, and handle reconnect with state republish.
+    /// Runs in a loop that monitors connection state and republishes on reconnect.
+    /// </summary>
+    private async Task MqttConnectAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                if (_mqttClient != null)
+                {
+                    await _mqttClient.ConnectAsync();
+
+                    // Publish discovery for all sensors + media player on connect
+                    if (_mqttClient.IsConnected && _sensors != null)
+                    {
+                        try
+                        {
+                            await _mqttClient.PublishDiscoveryAsync(_sensors.CollectAll());
+                        }
+                        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] Discovery error: {ex}\n"); }
+
+                        // Publish current states on connect
+                        try
+                        {
+                            await _mqttClient.PublishSensorStatesAsync(_sensors.CollectAll());
+                        }
+                        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] State publish error: {ex}\n"); }
+                    }
+                }
+
+                // Wait a bit before checking if we need to reconnect
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                File.AppendAllText(Program.LogFile(), $"[MQTT] Connect loop error: {ex}\n");
+                try { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
+                catch { break; }
+            }
+        }
+    }
+
     private async Task AutoUpdate(string downloadUrl)
     {
         try
@@ -411,7 +548,7 @@ public class DeskLinkApp
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "4.1.0";
+        return "4.3.0";
     }
 
     /// <summary>
