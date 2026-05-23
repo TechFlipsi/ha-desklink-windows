@@ -18,7 +18,20 @@ namespace HaDeskLink;
 /// </summary>
 public class SensorData
 {
-    public string Type { get; set; } = "sensor";
+    /// <summary>
+    /// Sensor type: Sensor (measurement) or BinarySensor (on/off).
+    /// </summary>
+    public SensorType SensorKind { get; set; } = SensorType.Sensor;
+
+    /// <summary>
+    /// Computed sensor type string: "sensor" or "binary_sensor".
+    /// </summary>
+    public string Type => SensorKind switch
+    {
+        SensorType.BinarySensor => "binary_sensor",
+        _ => "sensor"
+    };
+
     public string UniqueId { get; set; } = "";
     public string Name { get; set; } = "";
     public object State { get; set; } = "";
@@ -28,10 +41,19 @@ public class SensorData
     public string? StateClass { get; set; }
     public string? EntityCategory { get; set; } = "diagnostic";
 
+    /// <summary>
+    /// MQTT binary_sensor payload for ON state.
+    /// </summary>
+    public string? PayloadOn { get; set; } = "on";
+
+    /// <summary>
+    /// MQTT binary_sensor payload for OFF state.
+    /// </summary>
+    public string? PayloadOff { get; set; } = "off";
+
     public SensorData(string uniqueId, string name, object state, string unit = "",
         string deviceClass = "", string icon = "", string stateClass = "")
     {
-        Type = "sensor";
         UniqueId = uniqueId;
         Name = name;
         State = state;
@@ -40,4 +62,13 @@ public class SensorData
         if (!string.IsNullOrEmpty(icon)) Icon = icon;
         if (!string.IsNullOrEmpty(stateClass)) StateClass = stateClass;
     }
+}
+
+/// <summary>
+/// Enumerates sensor type variants.
+/// </summary>
+public enum SensorType
+{
+    Sensor = 0,
+    BinarySensor = 1
 }
