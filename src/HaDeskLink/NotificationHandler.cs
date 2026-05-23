@@ -22,6 +22,9 @@ public static class NotificationHandler
     private static readonly Color BtnBg = Color.FromArgb(15, 52, 96);
     private static readonly Color BtnHover = Color.FromArgb(25, 72, 136);
 
+    /// <summary>UI thread SynchronizationContext captured at startup. Thread-safe static.</summary>
+    internal static SynchronizationContext? UiContext { get; set; }
+
     public static bool TryHandleNotification(string jsonBody, NotifyIcon? trayIcon)
     {
         try
@@ -65,8 +68,10 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(message))
             {
-                var toast = new NotificationToast(title, message, actions, commandOnAction);
-                toast.Show();
+                if (actions != null && actions.Count > 0)
+                    ShowActionableNotification(title, message, actions, commandOnAction, trayIcon);
+                else
+                    ShowNotification(title, message, trayIcon);
                 return true;
             }
 
@@ -78,15 +83,21 @@ public static class NotificationHandler
 
     public static void ShowNotification(string title, string message, NotifyIcon? trayIcon = null)
     {
-        var toast = new NotificationToast(title, message);
-        toast.Show();
+        ShowToastOnUiThread(() =>
+        {
+            var toast = new NotificationToast(title, message);
+            toast.Show();
+        });
     }
 
     public static void ShowActionableNotification(string title, string message,
         List<NotificationAction> actions, string? commandOnAction = null, NotifyIcon? trayIcon = null)
     {
-        var toast = new NotificationToast(title, message, actions, commandOnAction);
-        toast.Show();
+        ShowToastOnUiThread(() =>
+        {
+            var toast = new NotificationToast(title, message, actions, commandOnAction);
+            toast.Show();
+        });
     }
 
     /// <summary>
@@ -94,8 +105,25 @@ public static class NotificationHandler
     /// </summary>
     public static void ShowConnectionToast(string title, string message)
     {
-        var toast = new NotificationToast(title, message, accentOverride: Color.FromArgb(46, 204, 113));
-        toast.Show();
+        ShowToastOnUiThread(() =>
+        {
+            var toast = new NotificationToast(title, message, accentOverride: Color.FromArgb(46, 204, 113));
+            toast.Show();
+        });
+    }
+
+    /// <summary>Marshals toast creation to the UI thread to prevent cross-thread exceptions.</summary>
+    private static void ShowToastOnUiThread(Action createAndShow)
+    {
+        var ctx = UiContext;
+        if (ctx != null && SynchronizationContext.Current != ctx)
+        {
+            ctx.Post(_ => createAndShow(), null);
+        }
+        else
+        {
+            createAndShow();
+        }
     }
 }
 

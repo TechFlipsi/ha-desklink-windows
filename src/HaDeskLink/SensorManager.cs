@@ -271,41 +271,46 @@ public class SensorManager : IDisposable
             var category = new PerformanceCounterCategory("GPU Engine");
             var instances = category.GetInstanceNames();
             double maxUtil = 0;
+
+            // Single-pass: read once (NextValue returns 0 on first call),
+            // sleep, then read again for real values — always do both passes
+            // regardless of first-pass result, since first NextValue() always = 0
+            var gpuCounters = new List<PerformanceCounter>();
             foreach (var inst in instances)
             {
-                // Focus on 3D / Graphics engines; skip Copy/Video engines
                 if (!inst.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) &&
                     !inst.Contains("engtype_Graphics", StringComparison.OrdinalIgnoreCase))
                     continue;
-
                 try
                 {
-                    using var pc = new PerformanceCounter("GPU Engine",
-                        "Utilization Percentage", inst);
+                    gpuCounters.Add(new PerformanceCounter("GPU Engine",
+                        "Utilization Percentage", inst));
+                }
+                catch { }
+            }
+
+            // First read (always returns 0, but primes the counter)
+            foreach (var pc in gpuCounters)
+            { try { pc.NextValue(); } catch { } }
+
+            // Brief pause for accurate second read
+            System.Threading.Thread.Sleep(200);
+
+            // Second read — this is the real value
+            foreach (var pc in gpuCounters)
+            {
+                try
+                {
                     var val = pc.NextValue();
                     if (val > maxUtil) maxUtil = val;
                 }
                 catch { }
             }
-            // Need a brief pause and re-read for accurate PerformanceCounter
-            if (maxUtil > 0)
-            {
-                System.Threading.Thread.Sleep(200);
-                foreach (var inst in instances)
-                {
-                    if (!inst.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) &&
-                        !inst.Contains("engtype_Graphics", StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    try
-                    {
-                        using var pc = new PerformanceCounter("GPU Engine",
-                            "Utilization Percentage", inst);
-                        var val = pc.NextValue();
-                        if (val > maxUtil) maxUtil = val;
-                    }
-                    catch { }
-                }
-            }
+
+            // Dispose all counters
+            foreach (var pc in gpuCounters)
+            { try { pc.Dispose(); } catch { } }
+
             if (maxUtil > 0)
             {
                 result.Add(new SensorData("gpu_load", "GPU Load",
@@ -655,7 +660,7 @@ public class SensorManager : IDisposable
     {
         try
         {
-            var ping = new System.Net.NetworkInformation.Ping();
+            using var ping = new System.Net.NetworkInformation.Ping();
             var reply = ping.Send("8.8.8.8", 2000);
             if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
                 return new SensorData("connectivity", "Connectivity", "on",
@@ -809,9 +814,9 @@ public class SensorManager : IDisposable
 
                 try
                 {
-                    var sent = new System.Diagnostics.PerformanceCounter("Network Interface",
+                    using var sent = new System.Diagnostics.PerformanceCounter("Network Interface",
                         "Bytes Sent/sec", instance);
-                    var recv = new System.Diagnostics.PerformanceCounter("Network Interface",
+                    using var recv = new System.Diagnostics.PerformanceCounter("Network Interface",
                         "Bytes Received/sec", instance);
                     sent.NextValue(); recv.NextValue();
                     System.Threading.Thread.Sleep(100);

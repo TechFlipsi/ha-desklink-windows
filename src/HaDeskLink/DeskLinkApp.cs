@@ -70,6 +70,9 @@ public class DeskLinkApp
         // Setup tray FIRST (needed for notifications)
         SetupTray();
 
+        // Capture UI thread context for cross-thread marshaling (notification toasts)
+        NotificationHandler.UiContext = SynchronizationContext.Current;
+
         // Check if token is available (encryption/migration may fail)
         if (string.IsNullOrEmpty(_config.HaToken))
         {
@@ -94,7 +97,7 @@ public class DeskLinkApp
 
         // Start sensor loop
         if (_sensors != null)
-            Task.Run(() => SensorLoop(_cts.Token));
+            Task.Run(() => SensorLoop(_cts.Token), _cts.Token);
 
         // Check for updates and auto-install
         var channel = _config.UpdateChannel;
@@ -197,7 +200,7 @@ public class DeskLinkApp
         Instance = null;
     }
 
-    private async void SensorLoop(CancellationToken ct)
+    private async Task SensorLoop(CancellationToken ct)
     {
         try
         {
@@ -205,13 +208,13 @@ public class DeskLinkApp
             foreach (var sensor in initial)
             {
                 try { await _api.RegisterSensorAsync(sensor); }
-                catch { }
+                catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[SensorLoop] Registration error: {ex}\n"); }
             }
             await _api.UpdateSensorStatesAsync(initial);
             await _api.SendLocationAsync();
             await _api.UpdateRegistrationAsync();
         }
-        catch { }
+        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[SensorLoop] Initial setup error: {ex}\n"); }
 
         while (!ct.IsCancellationRequested)
         {
@@ -231,8 +234,12 @@ public class DeskLinkApp
                 if (changed.Count > 0)
                     await _api.UpdateSensorStatesAsync(changed);
             }
-            catch { }
-            await Task.Delay(_config.SensorInterval * 1000, ct);
+            catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[SensorLoop] Update error: {ex}\n"); }
+            try
+            {
+                await Task.Delay(_config.SensorInterval * 1000, ct);
+            }
+            catch (OperationCanceledException) { break; }
         }
     }
 
@@ -348,11 +355,11 @@ public class DeskLinkApp
                 foreach (var sensor in sensors)
                 {
                     try { await _api.RegisterSensorAsync(sensor); }
-                    catch { }
+                    catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[Reconnect] Sensor registration error: {ex}\n"); }
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[Reconnect] Error: {ex}\n"); }
     }
 
     private async Task AutoUpdate(string downloadUrl)

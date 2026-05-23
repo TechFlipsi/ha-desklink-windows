@@ -66,7 +66,11 @@ public class WebhookServer : IDisposable
             catch (HttpListenerException) when (_cts.IsCancellationRequested) { break; }
             catch (ObjectDisposedException) { break; }
             catch (OperationCanceledException) { break; }
-            catch { }
+            catch (Exception ex)
+            {
+                try { File.AppendAllText(Program.LogFile(), $"[WebhookServer] Listener error (retrying): {ex}\n"); }
+                catch { }
+            }
         }
     }
 
