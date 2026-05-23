@@ -1,4 +1,4 @@
-# HA DeskLink v4.1
+# HA DeskLink v4.2
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
@@ -13,9 +13,9 @@ Written in **C# / .NET 8** – driverless sensor readings via WMI + PerformanceC
 
 ## Features
 - 🌡️ **CPU & GPU Temperature** – driverless via WMI + PerformanceCounter (no WinRing0, no Defender warning!)
-- 📊 **All Sensors** – CPU, RAM, all drives (C:, D:, etc.), Battery, Uptime
+- 📊 **All Sensors** – CPU, GPU, RAM, all drives (C:, D:, etc.), Battery, Uptime, VRAM, Audio, Microphone, Webcam, Idle Time
 - 🖥️ **Embedded Dashboard** – WebView2 shows HA right in the app (login once, session persists)
-- ⚡ **PC Commands from HA** – Shutdown, Restart, Hibernate, Lock, and more via notifications
+- ⚡ **PC Commands from HA** – Shutdown, Restart, Hibernate, Sleep, Lock, Volume, Media Control, and more via notifications
 - 📬 **Notifications** – HA sends toast notifications to your PC
 - 🔌 **mobile_app Protocol** – identical to the mobile app, no extra HA configuration needed
 - 🔄 **Auto-Update** from GitHub Releases
@@ -43,16 +43,20 @@ HA DeskLink receives commands via **notifications** – just like the mobile app
 | Shutdown | `shutdown` | Shuts down the PC in 30 seconds |
 | Restart | `restart` | Restarts the PC in 30 seconds |
 | Hibernate | `hibernate` | Puts the PC into hibernation |
-| Lock PC | `lock` | Locks the Windows screen |
-| Mute | `mute` | Mutes the audio |
+| Sleep | `sleep` | Puts the PC into sleep mode |
+| Lock PC | `lock_screen` | Locks the Windows screen |
+| Mute | `volume_mute` | Mutes the audio |
 | Volume Up | `volume_up` | Increases volume by 10% |
 | Volume Down | `volume_down` | Decreases volume by 10% |
+| Media Play/Pause | `media_play_pause` | Play/Pause media playback |
+| Media Next | `media_next` | Next track |
+| Media Previous | `media_previous` | Previous track |
 | Monitor On | `monitor_on` | Turns the monitor on |
 | Monitor Off | `monitor_off` | Turns the monitor off |
 | Screenshot | `screenshot` | Takes a screenshot |
 | Message | *(no command)* | Shows a notification only |
 
-> ⚠️ `mute`, `volume_up`, `volume_down`, `monitor_on`, `monitor_off`, and `screenshot` are available from v2.1.0!
+> ⚠️ `volume_mute`, `volume_up`, `volume_down`, `monitor_on`, `monitor_off`, and `screenshot` are available from v2.1.0!
 
 ### Examples
 
@@ -93,7 +97,7 @@ data:
   title: "Lock PC"
   message: "PC will be locked"
   data:
-    command: "lock"
+    command: "lock_screen"
 ```
 
 #### Simple Notification (no command)
@@ -149,7 +153,14 @@ HA DeskLink automatically creates sensors in HA:
 | `sensor.ha_desklink_cpu_clock` | CPU clock speed in MHz |
 | `sensor.ha_desklink_gpu_load` | GPU usage in % |
 | `sensor.ha_desklink_gpu_temperature` | GPU temperature in °C |
+| `sensor.ha_desklink_gpu_memory_used` | GPU VRAM used in MB |
+| `sensor.ha_desklink_gpu_memory_total` | GPU VRAM total in MB |
 | `sensor.ha_desklink_gpu_fan_speed` | GPU fan in RPM |
+| `sensor.ha_desklink_audio_volume` | System volume in % |
+| `binary_sensor.ha_desklink_audio_mute` | Mute status (on/off) |
+| `binary_sensor.ha_desklink_mic_active` | Microphone in use (on/off) |
+| `binary_sensor.ha_desklink_webcam_active` | Webcam in use (on/off) |
+| `sensor.ha_desklink_idle_time` | Seconds since last user input |
 | `sensor.ha_desklink_memory_usage` | RAM usage in % |
 | `sensor.ha_desklink_memory_used` | RAM used in GB |
 | `sensor.ha_desklink_memory_free` | RAM free in GB |
@@ -172,7 +183,7 @@ HA DeskLink automatically creates sensors in HA:
 | `sensor.ha_desklink_network_download` | Download speed in KB/s |
 | `sensor.ha_desklink_fan_*` | Fan speeds in RPM (CPU, GPU, Motherboard) |
 
-> 💡 Additional drives (D:, E:, etc.) are detected automatically. GPU sensors only appear if a GPU is present.
+> 💡 Additional drives (D:, E:, etc.) are detected automatically. GPU sensors only appear if a GPU is present. `webcam_active` and `mic_active` are binary_sensor types.
 
 ## Dashboard
 

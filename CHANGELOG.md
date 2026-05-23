@@ -1,3 +1,28 @@
+## v4.2.0 (2026-05-23)
+
+### 📊 Neue Sensoren
+- **idle_time** – Sekunden seit letzter Benutzereingabe
+- **audio_volume** – System-Lautstärke 0-100%
+- **audio_mute** – Stummschaltung (on/off)
+- **mic_active** – Mikrofon in Benutzung (binary sensor)
+- **webcam_active** – Webcam in Benutzung (binary sensor)
+- **gpu_memory_used / gpu_memory_total** – GPU VRAM (NVIDIA/AMD)
+
+### ⚡ Neue Befehle
+- **lock_screen**, **sleep**, **hibernate** – PC-Energiebefehle
+- **volume_up**, **volume_down**, **volume_mute** – Lautstärke-Steuerung
+- **media_play_pause**, **media_next**, **media_previous** – Mediensteuerung
+
+### 🌍 Lokalisierung
+- 22 neue Lokalisierungs-Keys in allen 6 Sprachen (de, en, es, fr, zh, ja)
+
+### 🐛 Bugfixes
+- async void Crash-Prävention
+- WebhookServer catch-all Exception-Handling
+- NotificationToast Cross-Thread-Fix
+- PerformanceCounter/Ping Dispose-Fix
+- GPU Double-Pass-Logik korrigiert
+
 ## v4.1.0 (2026-05-23)
 
 ### 🎨 Einstellungen Redesign

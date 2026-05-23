@@ -1,4 +1,4 @@
-# HA DeskLink v4.0
+# HA DeskLink v4.2
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
@@ -20,9 +20,9 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 
 ## Features
 - 🌡️ **CPU & GPU Temperatur** – treiberlos via WMI + PerformanceCounter (kein WinRing0, keine Defender-Warnung!)
-- 📊 **Alle Sensoren** – CPU, GPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime
+- 📊 **Alle Sensoren** – CPU, GPU, RAM, alle Laufwerke (C:, D:, etc.), Battery, Uptime, VRAM, Audio, Mikrofon, Webcam, Idle-Zeit
 - 🖥️ **Eingebettetes Dashboard** – WebView2 zeigt HA direkt in der App (einmaliges Login, Session bleibt erhalten)
-- ⚡ **PC-Befehle aus HA** – Shutdown, Restart, Hibernate, Lock, und mehr per Benachrichtigung
+- ⚡ **PC-Befehle aus HA** – Shutdown, Restart, Hibernate, Sleep, Lock, Lautstärke, Mediensteuerung und mehr per Benachrichtigung
 - 📬 **Benachrichtigungen** – HA sendet Toast-Notifications an den PC
 - 🔔 **Actionable Notifications** – Benachrichtigungen mit Aktions-Buttons
 - ⚡ **Quick Actions** – Konfigurierbare Hotkeys für Entity-Toggles (Quick Actions: Ctrl+Shift+H, Dashboard: Ctrl+Shift+D, Einstellungen: Ctrl+Shift+S)
@@ -30,7 +30,7 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 - 📷 **Webcam-Sensor** – Zeigt ob Webcam aktiv ist (nur Linux/macOS, auf Windows entfernt)
 - ⚙️ **Einstellungen** – Komplett neu gestaltet: GroupBoxes, Entity-Dropdown, JSON-Editor
 - 🎨 **Dark Mode** – Automatisch (System), Hell oder Dunkel wählbar
-- 🌐 **6 Sprachen** – Deutsch, Englisch, Spanisch, Französisch, Chinesisch, Japanisch
+- 🌐 **6 Sprachen** – Deutsch, Englisch, Spanisch, Französisch, Chinesisch, Japanisch (22 neue Keys in v4.2)
 - 🔌 **mobile_app Protokoll** – identisch zur Handy-App, keine Extra-Konfiguration in HA nötig
 - 🔄 **Auto-Update** von GitHub Releases
 - 📌 **System Tray** – läuft minimiert im Hintergrund
@@ -58,10 +58,14 @@ HA DeskLink empfängt Befehle über **Benachrichtigungen** – genau wie die Han
 | Herunterfahren | `shutdown` | Fährt den PC in 30 Sekunden herunter |
 | Neustarten | `restart` | Startet den PC in 30 Sekunden neu |
 | Ruhezustand | `hibernate` | Versetzt den PC in den Ruhezustand |
-| PC sperren | `lock` | Sperrt den Windows-Bildschirm |
-| Lautstärke stumm | `mute` | Schaltet den Ton stumm |
+| Energie sparen | `sleep` | Versetzt den PC in den Energiesparmodus |
+| PC sperren | `lock_screen` | Sperrt den Windows-Bildschirm |
+| Lautstärke stumm | `volume_mute` | Schaltet den Ton stumm |
 | Lautstärke lauter | `volume_up` | Erhöht die Lautstärke um 10% |
 | Lautstärke leiser | `volume_down` | Verringert die Lautstärke um 10% |
+| Media Play/Pause | `media_play_pause` | Play/Pause für Medienwiedergabe |
+| Media Nächster | `media_next` | Nächster Titel |
+| Media Vorheriger | `media_previous` | Vorheriger Titel |
 | Helligkeit rauf | `brightness_up` | Erhöht die Bildschirmhelligkeit um 10% (⚠️ nur Laptops/int. Monitore) |
 | Helligkeit runter | `brightness_down` | Verringert die Bildschirmhelligkeit um 10% (⚠️ nur Laptops/int. Monitore) |
 | Helligkeit setzen | `brightness:50` | Setzt Helligkeit auf bestimmten Wert (0-100, ⚠️ nur Laptops/int. Monitore) |
@@ -72,7 +76,7 @@ HA DeskLink empfängt Befehle über **Benachrichtigungen** – genau wie die Han
 | Snipping Tool | `snipping_tool` | Öffnet das Windows Snipping Tool |
 | Nachricht | *(kein command)* | Zeigt nur eine Benachrichtigung an |
 
-> ⚠️ `mute`, `volume_up`, `volume_down`, `monitor_on`, `monitor_off` und `screenshot` sind ab v2.1.0 verfügbar!
+> ⚠️ `volume_mute`, `volume_up`, `volume_down`, `monitor_on`, `monitor_off` und `screenshot` sind ab v2.1.0 verfügbar!
 >
 > ⚠️ **Helligkeits-Befehle** (`brightness_up`, `brightness_down`, `brightness:XX`) funktionieren in der Regel **nur auf Laptops** mit integriertem Display. An Desktop-PCs mit externen Monitoren werden die Befehle ignoriert – die meisten externen Monitore unterstützen keine Software-Helligkeitssteuerung.
 
@@ -131,7 +135,7 @@ data:
   title: "PC sperren"
   message: "Der PC wird gesperrt"
   data:
-    command: "lock"
+    command: "lock_screen"
 ```
 
 #### Einfache Benachrichtigung (ohne Befehl)
@@ -187,7 +191,14 @@ HA DeskLink erstellt automatisch Sensoren in HA:
 | `sensor.ha_desklink_cpu_clock` | CPU-Taktrate in MHz |
 | `sensor.ha_desklink_gpu_load` | GPU-Auslastung in % |
 | `sensor.ha_desklink_gpu_temperature` | GPU-Temperatur in °C |
+| `sensor.ha_desklink_gpu_memory_used` | GPU VRAM verwendet in MB |
+| `sensor.ha_desklink_gpu_memory_total` | GPU VRAM gesamt in MB |
 | `sensor.ha_desklink_gpu_fan_speed` | GPU-Lüfter in RPM |
+| `sensor.ha_desklink_audio_volume` | System-Lautstärke in % |
+| `binary_sensor.ha_desklink_audio_mute` | Stummschaltung (on/off) |
+| `binary_sensor.ha_desklink_mic_active` | Mikrofon in Benutzung (on/off) |
+| `binary_sensor.ha_desklink_webcam_active` | Webcam in Benutzung (on/off) |
+| `sensor.ha_desklink_idle_time` | Sekunden seit letzter Benutzereingabe |
 | `sensor.ha_desklink_memory_usage` | RAM-Auslastung in % |
 | `sensor.ha_desklink_memory_used` | RAM verwendet in GB |
 | `sensor.ha_desklink_memory_free` | RAM frei in GB |
@@ -214,7 +225,7 @@ HA DeskLink erstellt automatisch Sensoren in HA:
 | `sensor.ha_desklink_fan_*` | Lüfter-Drehzahlen in RPM (CPU, GPU, Mainboard) |
 | `sensor.ha_desklink_version` | Aktuelle HA DeskLink Version |
 
-> 💡 Weitere Laufwerke (D:, E: etc.) werden automatisch erkannt. GPU-Sensoren erscheinen nur wenn eine GPU vorhanden ist.
+> 💡 Weitere Laufwerke (D:, E: etc.) werden automatisch erkannt. GPU-Sensoren erscheinen nur wenn eine GPU vorhanden ist. `webcam_active` und `mic_active` sind binary_sensor Typen.
 
 ## Dashboard
 
