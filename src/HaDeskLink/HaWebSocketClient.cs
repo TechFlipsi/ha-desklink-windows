@@ -276,11 +276,14 @@ public class HaWebSocketClient : IDisposable
                     // Show notification
                     if (!string.IsNullOrEmpty(message))
                     {
-                        NotificationHandler.ShowWebSocketNotification(title, message, actions, commandOnAction, _trayIcon);
+                        if (actions != null && actions.Count > 0)
+                            NotificationHandler.ShowActionableNotification(title, message, actions, commandOnAction);
+                        else
+                            NotificationHandler.ShowNotification(title, message);
                     }
                     else if (!string.IsNullOrEmpty(command))
                     {
-                        NotificationHandler.ShowNotification("HA DeskLink", $"Befehl ausgeführt: {command}", _trayIcon);
+                        NotificationHandler.ShowNotification("HA DeskLink", $"Befehl ausgeführt: {command}");
                     }
                 }
             }
