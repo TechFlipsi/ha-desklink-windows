@@ -15,26 +15,23 @@ using Microsoft.Web.WebView2.WinForms;
 namespace HaDeskLink;
 
 /// <summary>
-/// Embedded HA Dashboard using WebView2 with external_auth API.
-/// Auto-logs in using the Long-Lived Access Token from config.
-/// Includes rate-limiting and IP-ban prevention via AuthGuard.
+/// Embedded HA Dashboard using WebView2.
+/// Opens the HA login page — user logs in once with username/password,
+/// then WebView2 remembers the session (just like a regular browser).
+/// Falls back to the default browser if WebView2 is not available.
 /// </summary>
 public class DashboardWindow : Form
 {
     private WebView2? _webView;
     private readonly string _haUrl;
-    private readonly string _token;
-    private readonly AuthGuard _authGuard;
     private Label? _errorLabel;
     private Panel? _loadingPanel;
     private static bool _installPrompted = false;
     private static DashboardWindow? _instance;
 
-    public DashboardWindow(string haUrl, string token)
+    public DashboardWindow(string haUrl)
     {
         _haUrl = haUrl.TrimEnd('/');
-        _token = token;
-        _authGuard = new AuthGuard();
 
         Text = "HA DeskLink - Dashboard";
         Size = new Size(1300, 850);
@@ -94,16 +91,11 @@ public class DashboardWindow : Form
     {
         base.OnLoad(e);
 
-        if (_authGuard.IsBlocked)
-        {
-            ShowError(_authGuard.BlockMessage);
-            return;
-        }
-
         _webView = new WebView2 { Dock = DockStyle.Fill };
 
         try
         {
+            // Use persistent user data folder so login session survives restarts
             var userDataDir = Path.Combine(Config.GetConfigDir(), "WebView2Data");
             Directory.CreateDirectory(userDataDir);
 
@@ -114,11 +106,8 @@ public class DashboardWindow : Form
             _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
 
-            // Navigate with external_auth parameter
-            _webView.CoreWebView2.Navigate($"{_haUrl}?external_auth=1");
-
-            // Inject externalAuth after page loads
-            _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+            // Navigate directly to HA — user logs in once, session persists
+            _webView.CoreWebView2.Navigate(_haUrl);
 
             // Replace loading panel with WebView
             Controls.Clear();
@@ -126,15 +115,7 @@ public class DashboardWindow : Form
         }
         catch (Exception ex)
         {
-            _authGuard.RecordFailure(ex.Message);
-
-            if (_authGuard.IsBlocked)
-            {
-                ShowError(_authGuard.BlockMessage);
-                return;
-            }
-
-            // WebView2 not installed — offer install
+            // WebView2 not installed — offer install or fallback to browser
             if (!_installPrompted && ex.Message.Contains("WebView2"))
             {
                 _installPrompted = true;
@@ -164,6 +145,7 @@ public class DashboardWindow : Form
                 }
                 else
                 {
+                    // Fallback: open in default browser
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_haUrl) { UseShellExecute = true });
                 }
             }
@@ -172,49 +154,6 @@ public class DashboardWindow : Form
                 ShowError($"Fehler beim Laden: {ex.Message}");
             }
         }
-    }
-
-    private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
-    {
-        if (_webView?.CoreWebView2 == null || _authGuard.IsBlocked) return;
-
-        if (e.IsSuccess)
-        {
-            try
-            {
-                var js = BuildExternalAuthScript();
-                await _webView.CoreWebView2.ExecuteScriptAsync(js);
-                _authGuard.RecordSuccess();
-            }
-            catch (Exception ex)
-            {
-                _authGuard.RecordFailure($"Auth inject failed: {ex.Message}");
-            }
-        }
-        else
-        {
-            _authGuard.RecordFailure($"Navigation failed: HTTP {e.HttpStatusCode}");
-        }
-    }
-
-    private string BuildExternalAuthScript()
-    {
-        var t = _token.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\"", "\\\"").Replace("\n", "").Replace("\r", "");
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("(function() {");
-        sb.AppendLine("  if (window._externalAuthInjected) return;");
-        sb.AppendLine("  window._externalAuthInjected = true;");
-        sb.AppendLine("  window.externalApp = {");
-        sb.AppendLine("    getExternalAuth: function(cb, force) {");
-        sb.AppendLine("      try { cb({ access_token: '" + t + "', expires_in: 900, refresh_token: '" + t + "', token_type: 'Bearer' }); }");
-        sb.AppendLine("      catch(e) { console.error('[HA DeskLink] getExternalAuth error:', e); }");
-        sb.AppendLine("    },");
-        sb.AppendLine("    saveExternalAuth: function(data, cb) { try { if (cb) cb(); } catch(e) {} },");
-        sb.AppendLine("    revokeExternalAuth: function(cb) { try { if (cb) cb(); } catch(e) {} if (window.close) window.close(); }");
-        sb.AppendLine("  };");
-        sb.AppendLine("  console.log('[HA DeskLink] externalAuth interface injected');");
-        sb.AppendLine("})();");
-        return sb.ToString();
     }
 
     private void ShowError(string message)
@@ -234,14 +173,18 @@ public class DashboardWindow : Form
         base.OnFormClosing(e);
     }
 
-    public static void Open(string haUrl, string token)
+    /// <summary>
+    /// Opens the dashboard window. If already open, activates it.
+    /// No token needed — user logs in once via normal HA login page.
+    /// </summary>
+    public static void Open(string haUrl)
     {
         if (_instance != null && !_instance.IsDisposed)
         {
             _instance.Activate();
             return;
         }
-        _instance = new DashboardWindow(haUrl, token);
+        _instance = new DashboardWindow(haUrl);
         _instance.Show();
     }
 }
