@@ -1,4 +1,4 @@
-# HA DeskLink v4.0
+# HA DeskLink v4.1
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)

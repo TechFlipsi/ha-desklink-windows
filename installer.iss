@@ -4,7 +4,7 @@
 
 [Setup]
 AppName={#AppName}
-AppVersion=4.0.1
+AppVersion=4.1.0
 AppPublisher=Fabian Kirchweger
 AppPublisherURL=https://github.com/FKirchweger/ha-desklink-dotnet
 AppSupportURL=https://github.com/FKirchweger/ha-desklink-dotnet/issues
@@ -13,7 +13,7 @@ DefaultGroupName={#AppName}
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 OutputDir=output
-OutputBaseFilename=HA_DeskLink_Setup_4.0.1
+OutputBaseFilename=HA_DeskLink_Setup_4.1.0
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

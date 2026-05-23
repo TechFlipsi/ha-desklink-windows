@@ -4,11 +4,6 @@
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License v3 as published by
 // the Free Software Foundation.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -42,11 +37,15 @@ public class SettingsWindow : Form
     private ListBox _qaList = null!;
     private List<(string entityId, string friendlyName)> _entities = new();
 
+    // Dark theme colors
     private static readonly Color DarkBg = Color.FromArgb(32, 32, 32);
     private static readonly Color DarkFg = Color.FromArgb(230, 230, 230);
     private static readonly Color DarkInput = Color.FromArgb(48, 48, 48);
-    private static readonly Color DarkBorder = Color.FromArgb(64, 64, 64);
+    private static readonly Color DarkSectionBg = Color.FromArgb(40, 40, 40);
     private static readonly Color AccentBlue = Color.FromArgb(0, 120, 215);
+    private static readonly Color SuccessGreen = Color.FromArgb(0, 134, 100);
+    private static readonly Color WarningOrange = Color.FromArgb(180, 80, 0);
+    private static readonly Color DangerRed = Color.FromArgb(200, 50, 50);
 
     public SettingsWindow(Config config, Action onReconnect, HaApiClient? api = null)
     {
@@ -54,7 +53,7 @@ public class SettingsWindow : Form
         _onReconnect = onReconnect;
         _api = api;
         Text = $"HA DeskLink - {Localization.Get("settings_title")}";
-        Size = new Size(620, 960);
+        Size = new Size(640, 960);
         MinimumSize = new Size(520, 700);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
@@ -66,7 +65,7 @@ public class SettingsWindow : Form
 
     private void InitializeComponents()
     {
-        var mainPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(20) };
+        var mainPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(24) };
 
         var content = new FlowLayoutPanel
         {
@@ -74,145 +73,179 @@ public class SettingsWindow : Form
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             AutoSize = true,
-            Width = mainPanel.Width - 50,
+            Width = mainPanel.Width - 60,
         };
+        mainPanel.Resize += (s, e) => { content.Width = mainPanel.Width - 60; };
 
-        mainPanel.Resize += (s, e) => { content.Width = mainPanel.Width - 50; };
-
-        // === Connection Section ===
-        content.Controls.Add(MakeHeader("🔌 " + Localization.Get("settings_connection", "Connection")));
+        // ═══════════════════════════════════════════
+        // 🔌 VERBINDUNG
+        // ═══════════════════════════════════════════
+        content.Controls.Add(MakeSectionHeader("🔌 " + Localization.Get("settings_connection", "Verbindung")));
 
         var connTable = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 3, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 5, 0, 15) };
-        connTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        connTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
         connTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         _urlBox = new TextBox { Dock = DockStyle.Fill, Text = "https://homeassistant.local:8123" };
+        _urlBox.ToolTipText = "Die URL deiner Home Assistant Instanz, z.B. http://192.168.1.100:8123";
         connTable.Controls.Add(MakeLabel(Localization.Get("settings_ha_url")), 0, 0);
         connTable.Controls.Add(_urlBox, 1, 0);
-        connTable.Controls.Add(MakeLabel(Localization.Get("settings_token")), 0, 1);
+
         _tokenBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
+        _tokenBox.ToolTipText = "Long-Lived Access Token aus HA: Profil → Sicherheit → Token erstellen";
+        connTable.Controls.Add(MakeLabel(Localization.Get("settings_token")), 0, 1);
         connTable.Controls.Add(_tokenBox, 1, 1);
+
         _sslCheck = new CheckBox { Text = Localization.Get("settings_verify_ssl"), AutoSize = true };
+        _sslCheck.ToolTipText = "SSL-Zertifikat überprüfen (deaktivieren bei Self-Signed)";
         connTable.Controls.Add(_sslCheck, 0, 2);
         connTable.SetColumnSpan(_sslCheck, 2);
         content.Controls.Add(connTable);
 
-        // === General Section ===
-        content.Controls.Add(MakeHeader("⚙️ " + Localization.Get("settings_general", "General")));
+        // ═══════════════════════════════════════════
+        // ⚙️ ALLGEMEIN
+        // ═══════════════════════════════════════════
+        content.Controls.Add(MakeSectionHeader("⚙️ " + Localization.Get("settings_general", "Allgemein")));
 
         var genTable = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 8, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 5, 0, 15) };
-        genTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+        genTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
         genTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         _autostartCheck = new CheckBox { Text = Localization.Get("settings_autostart"), AutoSize = true };
+        _autostartCheck.ToolTipText = "HA DeskLink automatisch beim Windows-Start starten";
         genTable.Controls.Add(_autostartCheck, 0, 0);
         genTable.SetColumnSpan(_autostartCheck, 2);
 
         genTable.Controls.Add(MakeLabel(Localization.Get("settings_sensor_interval")), 0, 1);
-        _intervalBox = new NumericUpDown { Minimum = 5, Maximum = 300, Value = 30, Dock = DockStyle.Fill };
+        _intervalBox = new NumericUpDown { Minimum = 10, Maximum = 300, Value = 30, Dock = DockStyle.Fill };
+        AddTooltip(_intervalBox, "Wie oft Sensordaten an HA gesendet werden (10-300 Sekunden). 30s ist der Standard.");
+
+        var intervalHint = new Label { Text = "(10 – 300 Sekunden, Standard: 30)", AutoSize = true, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8f) };
         genTable.Controls.Add(_intervalBox, 1, 1);
+        genTable.Controls.Add(intervalHint, 0, 2);
+        genTable.SetColumnSpan(intervalHint, 2);
 
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_update_channel")), 0, 2);
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_update_channel")), 0, 3);
         _updateChannelBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _updateChannelBox.ToolTipText = "Stabil: Nur getestete Versionen. Pre-Release: Auch Beta-Versionen.";
         _updateChannelBox.Items.AddRange(new object[] { Localization.Get("settings_channel_stable"), Localization.Get("settings_channel_prerelease") });
-        genTable.Controls.Add(_updateChannelBox, 1, 2);
+        genTable.Controls.Add(_updateChannelBox, 1, 3);
 
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_language")), 0, 3);
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_language")), 0, 4);
         _languageBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         foreach (var lang in Localization.AvailableLanguages)
             _languageBox.Items.Add($"{Localization.GetLanguageName(lang)} ({lang})");
-        genTable.Controls.Add(_languageBox, 1, 3);
+        genTable.Controls.Add(_languageBox, 1, 4);
 
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_theme")), 0, 4);
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_theme")), 0, 5);
         _themeBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _themeBox.ToolTipText = "System: Folgt Windows-Einstellung. Hell/Dunkel: Feste Wahl.";
         _themeBox.Items.AddRange(new object[] { Localization.Get("settings_theme_system"), Localization.Get("settings_theme_light"), Localization.Get("settings_theme_dark") });
-        genTable.Controls.Add(_themeBox, 1, 4);
+        genTable.Controls.Add(_themeBox, 1, 5);
 
         // Hotkey: Quick Actions
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_qa")), 0, 5);
-        var hotkeyPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
-        _hotkeyModBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
-        _hotkeyModBox.Items.AddRange(new object[] { "Ctrl+Shift", "Ctrl+Alt", "Ctrl", "Alt", "Shift", Localization.Get("settings_hotkey_none") });
-        hotkeyPanel.Controls.Add(_hotkeyModBox);
-        hotkeyPanel.Controls.Add(new Label { Text = "+", AutoSize = true, Margin = new Padding(4, 6, 4, 0) });
-        _hotkeyKeyBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
-        _hotkeyKeyBox.Items.AddRange(new object[] { "H", "Q", "A", "S", "D", "F", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Space" });
-        hotkeyPanel.Controls.Add(_hotkeyKeyBox);
-        genTable.Controls.Add(hotkeyPanel, 1, 5);
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_qa")), 0, 6);
+        var hotkeyPanel = CreateHotkeyRow(out _hotkeyModBox, out _hotkeyKeyBox);
+        AddTooltip(_hotkeyModBox, "Tastenkombination für Quick Actions öffnen");
+        genTable.Controls.Add(hotkeyPanel, 1, 6);
 
         // Hotkey: Dashboard
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_dashboard")), 0, 6);
-        var dashHotkeyPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
-        _hotkeyDashModBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
-        _hotkeyDashModBox.Items.AddRange(new object[] { "Ctrl+Shift", "Ctrl+Alt", "Ctrl", "Alt", "Shift", Localization.Get("settings_hotkey_none") });
-        dashHotkeyPanel.Controls.Add(_hotkeyDashModBox);
-        dashHotkeyPanel.Controls.Add(new Label { Text = "+", AutoSize = true, Margin = new Padding(4, 6, 4, 0) });
-        _hotkeyDashKeyBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
-        _hotkeyDashKeyBox.Items.AddRange(new object[] { "D", "H", "Q", "A", "S", "F", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Space" });
-        dashHotkeyPanel.Controls.Add(_hotkeyDashKeyBox);
-        genTable.Controls.Add(dashHotkeyPanel, 1, 6);
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_dashboard")), 0, 7);
+        var dashPanel = CreateHotkeyRow(out _hotkeyDashModBox, out _hotkeyDashKeyBox);
+        AddTooltip(dashPanel, "Tastenkombination für HA Dashboard öffnen");
+        genTable.Controls.Add(dashPanel, 1, 7);
 
-        // Hotkey: Settings
-        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_settings")), 0, 7);
-        var settingsHotkeyPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
-        _hotkeySettingsModBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
-        _hotkeySettingsModBox.Items.AddRange(new object[] { "Ctrl+Shift", "Ctrl+Alt", "Ctrl", "Alt", "Shift", Localization.Get("settings_hotkey_none") });
-        settingsHotkeyPanel.Controls.Add(_hotkeySettingsModBox);
-        settingsHotkeyPanel.Controls.Add(new Label { Text = "+", AutoSize = true, Margin = new Padding(4, 6, 4, 0) });
-        _hotkeySettingsKeyBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
-        _hotkeySettingsKeyBox.Items.AddRange(new object[] { "S", "H", "Q", "A", "D", "F", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Space" });
-        settingsHotkeyPanel.Controls.Add(_hotkeySettingsKeyBox);
-        genTable.Controls.Add(settingsHotkeyPanel, 1, 7);
+        // Hotkey: Settings (row 8 — need to add row)
+        genTable.RowCount = 9;
+        genTable.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_settings")), 0, 8);
+        var settingsPanel = CreateHotkeyRow(out _hotkeySettingsModBox, out _hotkeySettingsKeyBox);
+        AddTooltip(settingsPanel, "Tastenkombination für Einstellungen öffnen");
+        genTable.Controls.Add(settingsPanel, 1, 8);
 
         content.Controls.Add(genTable);
 
-        // === Action Buttons ===
-        content.Controls.Add(MakeHeader("🔧 " + Localization.Get("settings_actions", "Actions")));
+        // ═══════════════════════════════════════════
+        // 🔧 AKTIONEN — klar beschriftet, kein Duplikat
+        // ═══════════════════════════════════════════
+        content.Controls.Add(MakeSectionHeader("🔧 " + Localization.Get("settings_actions", "Aktionen")));
+
         var actionPanel = new FlowLayoutPanel { Dock = DockStyle.Top, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, AutoSize = true, Padding = new Padding(0, 5, 0, 15) };
-        actionPanel.Controls.Add(MakeButton(Localization.Get("settings_save"), AccentBlue, OnSave));
-        actionPanel.Controls.Add(MakeButton(Localization.Get("settings_reconnect_msg").Replace("...", ""), Color.FromArgb(0, 100, 180), OnReconnectClicked));
-        actionPanel.Controls.Add(MakeButton(Localization.Get("settings_retry", "Erneut verbinden"), Color.FromArgb(200, 50, 50), OnRetryClicked));
-        actionPanel.Controls.Add(MakeButton(Localization.Get("settings_reset_device"), Color.FromArgb(180, 80, 0), OnResetDeviceId));
-        actionPanel.Controls.Add(MakeButton(Localization.Get("settings_reregister_sensors"), Color.FromArgb(0, 130, 100), OnReRegisterSensors));
+
+        var saveBtn = MakeButton("💾 " + Localization.Get("settings_save"), AccentBlue, OnSave);
+        AddTooltip(saveBtn, "Alle Einstellungen speichern (URL, Token, Intervall, Sprache, usw.)");
+
+        var reconnectBtn = MakeButton("🔄 " + Localization.Get("settings_reconnect", "Neu verbinden"), Color.FromArgb(0, 100, 180), OnReconnectClicked);
+        AddTooltip(reconnectBtn, "Verbindung zu Home Assistant neu aufbauen.\nSetzt auch Login-Blockierung zurück falls blockiert.");
+
+        var resetBtn = MakeButton("🔑 " + Localization.Get("settings_reset_device", "Geräte-ID zurücksetzen"), WarningOrange, OnResetDeviceId);
+        AddTooltip(resetBtn, "Erstellt eine neue Geräte-ID. Das alte Gerät bleibt in HA.\nNötig wenn du das Gerät in HA löschen willst und neu anmelden musst.");
+
+        var reregisterBtn = MakeButton("📊 " + Localization.Get("settings_reregister_sensors", "Sensoren neu registrieren"), SuccessGreen, OnReRegisterSensors);
+        AddTooltip(reregisterBtn, "Alle Sensoren in Home Assistant erneut registrieren.\nHilft wenn Sensoren fehlen oder falsche Werte zeigen.");
+
+        actionPanel.Controls.Add(saveBtn);
+        actionPanel.Controls.Add(reconnectBtn);
+        actionPanel.Controls.Add(resetBtn);
+        actionPanel.Controls.Add(reregisterBtn);
         content.Controls.Add(actionPanel);
 
-        // === Quick Actions Section ===
-        content.Controls.Add(MakeHeader("⚡ " + Localization.Get("settings_quickactions")));
+        // ═══════════════════════════════════════════
+        // ⚡ QUICK ACTIONS
+        // ═══════════════════════════════════════════
+        content.Controls.Add(MakeSectionHeader("⚡ " + Localization.Get("settings_quickactions")));
         content.Controls.Add(new Label { Text = Localization.Get("settings_quickactions_desc"), AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(0, 0, 0, 8) });
 
-        // Load entities button
         var qaLoadPanel = new FlowLayoutPanel { Dock = DockStyle.Top, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, Margin = new Padding(0, 0, 0, 4) };
-        qaLoadPanel.Controls.Add(MakeButton("📥 " + Localization.Get("settings_load_entities"), Color.FromArgb(0, 130, 100), OnLoadEntities));
+        var loadBtn = MakeButton("📥 " + Localization.Get("settings_load_entities", "Entities laden"), SuccessGreen, OnLoadEntities);
+        AddTooltip(loadBtn, "Lädt alle Entities aus Home Assistant für die Entity-Auswahl.\nErforderlich bevor du eine Quick Action hinzufügen kannst.");
+        qaLoadPanel.Controls.Add(loadBtn);
         content.Controls.Add(qaLoadPanel);
 
-        // Quick Actions list
-        _qaList = new ListBox
-        {
-            Dock = DockStyle.Top,
-            Height = 180,
-            MinimumSize = new Size(0, 120),
-        };
+        _qaList = new ListBox { Dock = DockStyle.Top, Height = 180, MinimumSize = new Size(0, 120) };
         content.Controls.Add(_qaList);
 
-        // Add/Remove buttons
         var qaEditPanel = new FlowLayoutPanel { Dock = DockStyle.Top, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, Padding = new Padding(0, 4, 0, 15) };
-        qaEditPanel.Controls.Add(MakeButton("➕ " + Localization.Get("settings_qa_add", "Hinzufügen"), Color.FromArgb(0, 130, 100), OnAddQuickAction));
-        qaEditPanel.Controls.Add(MakeButton("✏️ " + Localization.Get("settings_qa_edit", "Bearbeiten"), Color.FromArgb(100, 100, 100), OnEditQuickAction));
-        qaEditPanel.Controls.Add(MakeButton("🗑️ " + Localization.Get("settings_qa_remove", "Entfernen"), Color.FromArgb(180, 80, 0), OnRemoveQuickAction));
-        qaEditPanel.Controls.Add(MakeButton("💾 " + Localization.Get("settings_save_quickactions"), AccentBlue, OnSaveQuickActions));
+
+        var addBtn = MakeButton("➕ " + Localization.Get("settings_qa_add", "Hinzufügen"), SuccessGreen, OnAddQuickAction);
+        AddTooltip(addBtn, "Neue Quick Action hinzufügen (Entity aus HA auswählen)");
+
+        var editBtn = MakeButton("✏️ " + Localization.Get("settings_qa_edit", "Bearbeiten"), Color.FromArgb(100, 100, 100), OnEditQuickAction);
+        AddTooltip(editBtn, "Ausgewählte Quick Action bearbeiten oder löschen");
+
+        var removeBtn = MakeButton("🗑️ " + Localization.Get("settings_qa_remove", "Entfernen"), WarningOrange, OnRemoveQuickAction);
+        AddTooltip(removeBtn, "Ausgewählte Quick Action entfernen");
+
+        qaEditPanel.Controls.Add(addBtn);
+        qaEditPanel.Controls.Add(editBtn);
+        qaEditPanel.Controls.Add(removeBtn);
         content.Controls.Add(qaEditPanel);
 
-        // === Status ===
-        _statusLabel = new Label { Text = Localization.Get("settings_saved"), ForeColor = Color.Gray, AutoSize = true, Margin = new Padding(0, 4, 0, 8) };
+        // Status
+        _statusLabel = new Label { Text = "", ForeColor = Color.Gray, AutoSize = true, Margin = new Padding(0, 4, 0, 8) };
         content.Controls.Add(_statusLabel);
 
         mainPanel.Controls.Add(content);
         Controls.Add(mainPanel);
     }
 
-    private static Label MakeHeader(string text)
+    // ─── Helper: Hotkey row ───
+    private static FlowLayoutPanel CreateHotkeyRow(out ComboBox modBox, out ComboBox keyBox)
     {
-        return new Label { Text = text, Font = new Font("Segoe UI", 11, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 8, 0, 2) };
+        var panel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
+        modBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+        modBox.Items.AddRange(new object[] { "Ctrl+Shift", "Ctrl+Alt", "Ctrl", "Alt", "Shift", Localization.Get("settings_hotkey_none") });
+        panel.Controls.Add(modBox);
+        panel.Controls.Add(new Label { Text = "+", AutoSize = true, Margin = new Padding(4, 6, 4, 0) });
+        keyBox = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
+        keyBox.Items.AddRange(new object[] { "H", "Q", "A", "S", "D", "F", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Space" });
+        panel.Controls.Add(keyBox);
+        return panel;
+    }
+
+    // ─── Helper: Section header ───
+    private static Label MakeSectionHeader(string text)
+    {
+        return new Label { Text = text, Font = new Font("Segoe UI", 11, FontStyle.Bold), AutoSize = true, Margin = new Padding(0, 12, 0, 2) };
     }
 
     private static Label MakeLabel(string text)
@@ -220,23 +253,35 @@ public class SettingsWindow : Form
         return new Label { Text = text, AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
     }
 
+    // ─── Helper: Button with AutoSize ───
     private static Button MakeButton(string text, Color color, EventHandler onClick)
     {
         var btn = new Button
         {
             Text = text,
-            Size = new Size(155, 38),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(140, 36),
             BackColor = color,
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9f),
             Margin = new Padding(2),
+            Padding = new Padding(12, 0, 12, 0),
         };
         btn.FlatAppearance.BorderSize = 0;
         btn.Click += onClick;
         return btn;
     }
 
+    // ─── Helper: Tooltips ───
+    private static void AddTooltip(Control control, string text)
+    {
+        var tip = new ToolTip { IsBalloon = true, InitialDelay = 300, ReshowDelay = 100, AutoPopDelay = 8000 };
+        tip.SetToolTip(control, text);
+    }
+
+    // ─── Quick Actions logic ───
     private List<QuickAction> GetCurrentQuickActions()
     {
         var actions = new List<QuickAction>();
@@ -263,11 +308,149 @@ public class SettingsWindow : Form
             _qaList.Items.Add($"{a.Name} ({a.EntityId})");
     }
 
+    // ═══════════════════════════════════════════════════════
+    // BUTTON HANDLERS — alle klar benannt und dokumentiert
+    // ═══════════════════════════════════════════════════════
+
+    private void OnSave(object? sender, EventArgs e)
+    {
+        // Validate URL
+        var url = _urlBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            MessageBox.Show("Die HA-URL darf nicht leer sein!", "Ungültige Eingabe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _urlBox.Focus();
+            return;
+        }
+        if (!url.StartsWith("http://") && !url.StartsWith("https://"))
+        {
+            MessageBox.Show("Die URL muss mit http:// oder https:// beginnen!", "Ungültige Eingabe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _urlBox.Focus();
+            return;
+        }
+
+        // Validate Token
+        if (string.IsNullOrWhiteSpace(_tokenBox.Text.Trim()))
+        {
+            MessageBox.Show("Der Long-Lived Access Token darf nicht leer sein!\n\nErstelle einen in HA: Profil → Sicherheit → Token erstellen.", "Ungültige Eingabe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _tokenBox.Focus();
+            return;
+        }
+
+        _config.HaUrl = _urlBox.Text.Trim();
+        _config.HaToken = _tokenBox.Text.Trim();
+        _config.VerifySsl = _sslCheck.Checked;
+        _config.Autostart = _autostartCheck.Checked;
+        _config.SensorInterval = Math.Max(10, (int)_intervalBox.Value);  // Enforce minimum 10s
+        _config.UpdateChannel = _updateChannelBox.SelectedIndex == 1 ? "prerelease" : "stable";
+
+        if (_languageBox.SelectedIndex >= 0 && _languageBox.SelectedIndex < Localization.AvailableLanguages.Count)
+            _config.Language = Localization.AvailableLanguages[_languageBox.SelectedIndex];
+
+        _config.Theme = _themeBox.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
+
+        _config.HotkeyModifiers = _hotkeyModBox.SelectedIndex switch
+        {
+            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
+        };
+        _config.HotkeyKey = _hotkeyKeyBox.SelectedItem?.ToString() ?? "H";
+
+        _config.HotkeyDashboardModifiers = _hotkeyDashModBox.SelectedIndex switch
+        {
+            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
+        };
+        _config.HotkeyDashboardKey = _hotkeyDashKeyBox.SelectedItem?.ToString() ?? "D";
+
+        _config.HotkeySettingsModifiers = _hotkeySettingsModBox.SelectedIndex switch
+        {
+            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
+        };
+        _config.HotkeySettingsKey = _hotkeySettingsKeyBox.SelectedItem?.ToString() ?? "S";
+
+        _config.Save();
+        if (_config.Autostart) Autostart.Enable(); else Autostart.Disable();
+        ApplyTheme(_config.Theme);
+        _statusLabel.Text = $"✓ {Localization.Get("settings_saved")}";
+    }
+
+    /// <summary>
+    /// Reconnect to HA — also resets LoginBlock if blocked.
+    /// This is the ONLY reconnect button — no duplicates.
+    /// </summary>
+    private void OnReconnectClicked(object? sender, EventArgs e)
+    {
+        // Reset WebSocket login block if it was set (e.g., after 3 failed token attempts)
+        var app = DeskLinkApp.Instance;
+        if (app?._wsClient != null && app._wsClient.LoginBlocked)
+        {
+            app._wsClient.ResetLoginBlock();
+            _statusLabel.Text = "✓ Login-Block zurückgesetzt, verbinde neu…";
+        }
+        else
+        {
+            _statusLabel.Text = "🔄 Verbinde neu mit Home Assistant…";
+        }
+
+        // Run reconnect async to not block UI thread
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try { _onReconnect.Invoke(); }
+            catch { }
+        });
+
+        _statusLabel.Text = "✓ Verbindung wird neu aufgebaut";
+    }
+
+    private void OnResetDeviceId(object? sender, EventArgs e)
+    {
+        var result = MessageBox.Show(
+            Localization.Get("settings_reset_device_confirm") + "\n\nDas alte Gerät bleibt in HA bestehen — du musst es dort manuell löschen.",
+            Localization.Get("settings_reset_device"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (result == DialogResult.Yes)
+        {
+            _api?.ResetDeviceId();
+            _statusLabel.Text = $"✓ {Localization.Get("settings_reset_device_done")}";
+        }
+    }
+
+    private void OnReRegisterSensors(object? sender, EventArgs e)
+    {
+        var result = MessageBox.Show(
+            Localization.Get("settings_reregister_confirm") + "\n\nDas registriert alle Sensoren neu in Home Assistant.",
+            Localization.Get("settings_reregister_sensors"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (result == DialogResult.Yes)
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try { DeskLinkApp.ReRegisterSensors(); }
+                catch { }
+            });
+            _statusLabel.Text = $"✓ {Localization.Get("settings_reregister_done")}";
+        }
+    }
+
+    private async void OnLoadEntities(object? sender, EventArgs e)
+    {
+        if (_api == null) { _statusLabel.Text = "⚠️ Keine Verbindung zu HA"; return; }
+
+        _statusLabel.Text = "⏳ Lade Entities…";
+        try
+        {
+            _entities = await _api.GetEntitiesAsync();
+            _entities = _entities.OrderBy(x => x.entityId).ToList();
+            _statusLabel.Text = $"✓ {_entities.Count} Entities geladen";
+        }
+        catch (Exception ex)
+        {
+            _statusLabel.Text = $"⚠️ Fehler: {ex.Message}";
+        }
+    }
+
     private void OnAddQuickAction(object? sender, EventArgs e)
     {
         if (_entities.Count == 0)
         {
-            MessageBox.Show(Localization.Get("settings_load_entities_first", "Bitte zuerst 'Entities laden' klicken!"), "HA DeskLink", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(Localization.Get("settings_load_entities_first", "Bitte zuerst '📥 Entities laden' klicken!"), "HA DeskLink", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -291,7 +474,6 @@ public class SettingsWindow : Form
 
         var nameBox = new TextBox { Dock = DockStyle.Fill };
 
-        // Auto-fill name when entity is selected
         entityCombo.SelectedIndexChanged += (s, args) =>
         {
             if (entityCombo.SelectedItem is EntityItem item)
@@ -358,7 +540,6 @@ public class SettingsWindow : Form
         foreach (var (entityId, friendlyName) in _entities)
             entityCombo.Items.Add(new EntityItem(entityId, friendlyName));
 
-        // Select current entity
         for (int i = 0; i < entityCombo.Items.Count; i++)
         {
             if (entityCombo.Items[i] is EntityItem ei && ei.EntityId == action.EntityId)
@@ -377,7 +558,7 @@ public class SettingsWindow : Form
                 nameBox.Text = item.FriendlyName;
         };
 
-        var deleteBtn = new Button { Text = "🗑️ " + Localization.Get("settings_qa_remove", "Entfernen"), BackColor = Color.FromArgb(180, 80, 0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var deleteBtn = new Button { Text = "🗑️ " + Localization.Get("settings_qa_remove", "Entfernen"), BackColor = WarningOrange, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         deleteBtn.FlatAppearance.BorderSize = 0;
         var saveBtn = new Button { Text = "💾 " + Localization.Get("settings_save", "Speichern"), BackColor = AccentBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         saveBtn.FlatAppearance.BorderSize = 0;
@@ -438,6 +619,10 @@ public class SettingsWindow : Form
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // THEME
+    // ═══════════════════════════════════════════════════════
+
     private void ApplyThemeToControls(Form dialog, string theme)
     {
         bool dark = theme == "dark" || (theme == "system" && IsSystemDark());
@@ -476,6 +661,7 @@ public class SettingsWindow : Form
         public EntityItem(string entityId, string friendlyName) { EntityId = entityId; FriendlyName = friendlyName; }
         public override string ToString() => $"{FriendlyName} ({EntityId})";
     }
+
     private void ApplyTheme(string theme)
     {
         bool dark = theme == "dark" || (theme == "system" && IsSystemDark());
@@ -504,13 +690,11 @@ public class SettingsWindow : Form
             }
             else if (c is Label lbl)
             {
-                if (lbl.ForeColor != Color.Gray && !IsAccentColor(lbl.ForeColor))
+                if (lbl.ForeColor != Color.Gray && lbl.ForeColor != AccentBlue)
                     lbl.ForeColor = fg;
             }
         }
     }
-
-    private static bool IsAccentColor(Color c) => c == AccentBlue;
 
     private static bool IsSystemDark()
     {
@@ -543,7 +727,7 @@ public class SettingsWindow : Form
         _tokenBox.Text = _config.HaToken;
         _sslCheck.Checked = _config.VerifySsl;
         _autostartCheck.Checked = _config.Autostart;
-        _intervalBox.Value = _config.SensorInterval;
+        _intervalBox.Value = Math.Max(10, _config.SensorInterval);  // Enforce minimum 10s
         _updateChannelBox.SelectedIndex = _config.UpdateChannel == "prerelease" ? 1 : 0;
 
         var currentLangIndex = Localization.AvailableLanguages.IndexOf(_config.Language);
@@ -572,112 +756,6 @@ public class SettingsWindow : Form
         };
         var settingsKeyIndex = _hotkeySettingsKeyBox.Items.IndexOf(_config.HotkeySettingsKey.ToUpper());
         _hotkeySettingsKeyBox.SelectedIndex = settingsKeyIndex >= 0 ? settingsKeyIndex : 0;
-    }
-
-    private void OnSave(object? sender, EventArgs e)
-    {
-        _config.HaUrl = _urlBox.Text;
-        _config.HaToken = _tokenBox.Text;
-        _config.VerifySsl = _sslCheck.Checked;
-        _config.Autostart = _autostartCheck.Checked;
-        _config.SensorInterval = (int)_intervalBox.Value;
-        _config.UpdateChannel = _updateChannelBox.SelectedIndex == 1 ? "prerelease" : "stable";
-
-        if (_languageBox.SelectedIndex >= 0 && _languageBox.SelectedIndex < Localization.AvailableLanguages.Count)
-            _config.Language = Localization.AvailableLanguages[_languageBox.SelectedIndex];
-
-        _config.Theme = _themeBox.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
-
-        _config.HotkeyModifiers = _hotkeyModBox.SelectedIndex switch
-        {
-            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
-        };
-        _config.HotkeyKey = _hotkeyKeyBox.SelectedItem?.ToString() ?? "H";
-
-        _config.HotkeyDashboardModifiers = _hotkeyDashModBox.SelectedIndex switch
-        {
-            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
-        };
-        _config.HotkeyDashboardKey = _hotkeyDashKeyBox.SelectedItem?.ToString() ?? "D";
-
-        _config.HotkeySettingsModifiers = _hotkeySettingsModBox.SelectedIndex switch
-        {
-            0 => "ctrl_shift", 1 => "ctrl_alt", 2 => "ctrl", 3 => "alt", 4 => "shift", 5 => "none", _ => "ctrl_shift"
-        };
-        _config.HotkeySettingsKey = _hotkeySettingsKeyBox.SelectedItem?.ToString() ?? "S";
-
-        _config.Save();
-        if (_config.Autostart) Autostart.Enable(); else Autostart.Disable();
-        ApplyTheme(_config.Theme);
-        _statusLabel.Text = Localization.Get("settings_saved");
-    }
-
-    private void OnRetryClicked(object? sender, EventArgs e)
-    {
-        // Reset WebSocket login block so it can attempt to reconnect
-        var app = DeskLinkApp.Instance;
-        if (app?._wsClient != null && app._wsClient.LoginBlocked)
-        {
-            app._wsClient.ResetLoginBlock();
-            _statusLabel.Text = Localization.Get("settings_retry", "Login-Block zurückgesetzt. Starte neue Verbindung...");
-        }
-        else
-        {
-            _statusLabel.Text = Localization.Get("settings_reconnect_msg");
-        }
-        _onReconnect.Invoke();
-    }
-
-    private void OnReconnectClicked(object? sender, EventArgs e)
-    {
-        _statusLabel.Text = Localization.Get("settings_reconnect_msg");
-        _onReconnect.Invoke();
-        _statusLabel.Text = Localization.Get("settings_saved");
-    }
-
-    private void OnResetDeviceId(object? sender, EventArgs e)
-    {
-        var result = MessageBox.Show(Localization.Get("settings_reset_device_confirm"),
-            Localization.Get("settings_reset_device"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-        if (result == DialogResult.Yes)
-        {
-            _api?.ResetDeviceId();
-            _statusLabel.Text = Localization.Get("settings_reset_device_done");
-        }
-    }
-
-    private void OnReRegisterSensors(object? sender, EventArgs e)
-    {
-        var result = MessageBox.Show(Localization.Get("settings_reregister_confirm"),
-            Localization.Get("settings_reregister_sensors"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (result == DialogResult.Yes)
-        {
-            DeskLinkApp.ReRegisterSensors();
-            _statusLabel.Text = Localization.Get("settings_reregister_done");
-        }
-    }
-
-    private async void OnLoadEntities(object? sender, EventArgs e)
-    {
-        if (_api == null) { _statusLabel.Text = Localization.Get("settings_no_connection"); return; }
-
-        _statusLabel.Text = Localization.Get("settings_loading_entities");
-        try
-        {
-            _entities = await _api.GetEntitiesAsync();
-            _entities = _entities.OrderBy(x => x.entityId).ToList();
-            _statusLabel.Text = $"{Localization.Get("settings_entities_loaded")} ({_entities.Count})";
-        }
-        catch (Exception ex)
-        {
-            _statusLabel.Text = $"{Localization.Get("settings_entities_failed")}: {ex.Message}";
-        }
-    }
-
-    private void OnSaveQuickActions(object? sender, EventArgs e)
-    {
-        // Quick actions are saved immediately when added/edited/removed
-        _statusLabel.Text = $"✓ {Localization.Get("settings_quickactions_saved")}";
     }
 
     private static SettingsWindow? _instance;

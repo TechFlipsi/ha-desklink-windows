@@ -10,8 +10,8 @@ using System.Windows.Forms;
 namespace HaDeskLink;
 
 /// <summary>
-/// Handles notifications from Home Assistant with modern dark-themed popups.
-/// Auto-dismisses after 8s, supports action buttons, HA blue accent.
+/// Handles notifications from Home Assistant with modern dark-themed toasts.
+/// Rounded corners via GraphicsPath (no P/Invoke), hover-pause auto-close, slide-in animation.
 /// </summary>
 public static class NotificationHandler
 {
@@ -65,10 +65,8 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(message))
             {
-                if (actions != null && actions.Count > 0)
-                    ShowActionableNotification(title, message, actions, commandOnAction, trayIcon);
-                else
-                    ShowNotification(title, message, trayIcon);
+                var toast = new NotificationToast(title, message, actions, commandOnAction);
+                toast.Show();
                 return true;
             }
 
@@ -78,33 +76,32 @@ public static class NotificationHandler
         return false;
     }
 
-    public static void ShowNotification(string title, string message, NotifyIcon? trayIcon)
+    public static void ShowNotification(string title, string message, NotifyIcon? trayIcon = null)
     {
-        // Show modern toast popup
         var toast = new NotificationToast(title, message);
         toast.Show();
     }
 
     public static void ShowActionableNotification(string title, string message,
-        List<NotificationAction> actions, string? commandOnAction, NotifyIcon? trayIcon)
+        List<NotificationAction> actions, string? commandOnAction = null, NotifyIcon? trayIcon = null)
     {
         var toast = new NotificationToast(title, message, actions, commandOnAction);
         toast.Show();
     }
 
-    public static void ShowWebSocketNotification(string title, string message,
-        List<NotificationAction>? actions, string? commandOnAction, NotifyIcon? trayIcon)
+    /// <summary>
+    /// Show a connection status toast (used for WebSocket events).
+    /// </summary>
+    public static void ShowConnectionToast(string title, string message)
     {
-        if (actions != null && actions.Count > 0)
-            ShowActionableNotification(title, message, actions, commandOnAction, trayIcon);
-        else
-            ShowNotification(title, message, trayIcon);
+        var toast = new NotificationToast(title, message, accentOverride: Color.FromArgb(46, 204, 113));
+        toast.Show();
     }
 }
 
 /// <summary>
 /// Modern dark-themed toast notification popup.
-/// Slides in from top-right, auto-closes after 8s, HA blue accent bar.
+/// Rounded corners via GraphicsPath, hover-pause auto-close, accent-colored left bar.
 /// </summary>
 public class NotificationToast : Form
 {
@@ -113,7 +110,8 @@ public class NotificationToast : Form
     private readonly string? _commandOnAction;
 
     public NotificationToast(string title, string message,
-        List<NotificationAction>? actions = null, string? commandOnAction = null)
+        List<NotificationAction>? actions = null, string? commandOnAction = null,
+        Color? accentOverride = null)
     {
         _actions = actions;
         _commandOnAction = commandOnAction;
@@ -125,10 +123,10 @@ public class NotificationToast : Form
         Size = new Size(400, CalculateHeight(message, actions));
         BackColor = Color.FromArgb(22, 33, 62);
 
-        // Round corners
-        Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, Width, Height, 16, 16));
+        // Region for rounded corners (no P/Invoke needed — .NET can do this)
+        Region = CreateRoundedRegion(0, 0, Width, Height, 16);
 
-        BuildContent(title, message, actions);
+        BuildContent(title, message, actions, accentOverride ?? Color.FromArgb(66, 133, 244));
 
         _autoCloseTimer = new Timer { Interval = 8000 };
         _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
@@ -145,10 +143,10 @@ public class NotificationToast : Form
         return Math.Max(100, Math.Min(h, 300));
     }
 
-    private void BuildContent(string title, string message, List<NotificationAction>? actions)
+    private void BuildContent(string title, string message, List<NotificationAction>? actions, Color accentColor)
     {
         // Left accent bar
-        var accentBar = new Panel { BackColor = Color.FromArgb(66, 133, 244), Size = new Size(4, Height), Dock = DockStyle.Left };
+        var accentBar = new Panel { BackColor = accentColor, Size = new Size(4, Height), Dock = DockStyle.Left };
 
         // Title
         var titleLabel = new Label
@@ -158,7 +156,7 @@ public class NotificationToast : Form
             Location = new Point(16, 12)
         };
 
-        // Close button
+        // Close button ✕
         var closeBtn = new Label
         {
             Text = "✕", Font = new Font("Segoe UI", 11f),
@@ -234,12 +232,27 @@ public class NotificationToast : Form
     protected override void OnMouseEnter(EventArgs e) { _autoCloseTimer.Stop(); base.OnMouseEnter(e); }
     protected override void OnMouseLeave(EventArgs e) { _autoCloseTimer.Start(); base.OnMouseLeave(e); }
 
-    [System.Runtime.InteropServices.DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
-    private static extern IntPtr CreateRoundRectRgn(int x, int y, int w, int h, int rx, int ry);
+    /// <summary>
+    /// Create a rounded rectangle region using GraphicsPath (no P/Invoke).
+    /// </summary>
+    private static Region CreateRoundedRegion(int x, int y, int width, int height, int radius)
+    {
+        var path = new GraphicsPath();
+        path.AddArc(x, y, radius, radius, 180, 90);
+        path.AddArc(x + width - radius, y, radius, radius, 270, 90);
+        path.AddArc(x + width - radius, y + height - radius, radius, radius, 0, 90);
+        path.AddArc(x, y + height - radius, radius, radius, 90, 90);
+        path.CloseFigure();
+        return new Region(path);
+    }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _autoCloseTimer?.Dispose();
+        if (disposing)
+        {
+            _autoCloseTimer?.Stop();
+            _autoCloseTimer?.Dispose();
+        }
         base.Dispose(disposing);
     }
 }

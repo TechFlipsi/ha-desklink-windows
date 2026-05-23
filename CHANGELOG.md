@@ -1,3 +1,27 @@
+## v4.1.0 (2026-05-23)
+
+### 🎨 Einstellungen Redesign
+- **Duplikat-Buttons entfernt**: Die zwei verwirrenden Reconnect-Buttons ("Verbindung wird erneut hergestellt" + "Erneut verbinden") sind jetzt ein einziger Button: **🔄 Neu verbinden** – der auch Login-Block zurücksetzt falls nötig
+- **No-Op Button entfernt**: "💾 Quick Actions gespeichert!" war ein Button der nichts tat (Quick Actions speichern automatisch) – entfernt
+- **Klarere Button-Namen**: "Gerät zurücksetzen" → "🔑 Geräte-ID zurücksetzen", "Sensoren neu registrieren" → "📊 Sensoren neu registrieren"
+- **Tooltips auf ALLEN Buttons**: Jeder Button hat jetzt einen Tooltip der genau erklärt was er macht
+- **URL & Token Validierung**: Leere oder ungültige Eingaben werden beim Speichern abgelehnt
+- **Sensor-Intervall Minimum**: 10 Sekunden (statt 5) – schont Home Assistant
+- **Button-Breite**: AutoSize statt starrer 155px – kein Abschneiden mehr
+- **Neu verbinden** nutzt jetzt Task.Run statt .Wait() – kein UI-Freeze mehr
+
+### 🔔 Benachrichtigung Redesign
+- **Modernes Toast-Design**: P/Invoke (CreateRoundRectRgn) entfernt, jetzt .NET GraphicsPath für abgerundete Ecken
+- **WebSocket-Verbindung**: Zeigt jetzt das moderne dunkle Toast statt Windows-BalloonTip
+- **Login-Fehler**: Zeigt jetzt das dunkle Toast statt BalloonTip
+- **Neue `ShowConnectionToast`-Methode**: Grüner Akzent für Verbindungsstatus
+- **Timer-Dispose-Bug fix**: _autoCloseTimer wird jetzt ordentlich gestoppt vor Dispose
+
+### 🧹 Aufräumung
+- 33 tote Localization-Keys entfernt (6 Sprachdateien)
+- Tray-Menü: "Quick Actions (Ctrl+Shift+H)" → zeigt jetzt den tatsächlich konfigurierten Hotkey dynamisch
+- `ShowWebSocketNotification` entfernt (unnötiger Wrapper)
+
 # Changelog
 
 ## [v4.0.0] - 2026-05-23
