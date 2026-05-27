@@ -36,7 +36,7 @@ public class MqttClient : IDisposable
 
     private const string DiscoveryPrefix = "homeassistant";
     private const string TopicPrefix = "ha_desklink";
-    private const string AppManufacturer = "TechFlipsi";
+    private const string AppManufacturer = "HA DeskLink";
     private const string AppDisplayName = "HA DeskLink";
     private const string AppModel = "PC";
     private const string PayloadOnline = "online";
@@ -63,6 +63,7 @@ public class MqttClient : IDisposable
     private int _consecutiveFailures;
     private int _reconnectAttempt;
     private bool _disposed;
+    private List<SensorData>? _lastDiscoverySensors;
 
     #endregion
 
@@ -170,6 +171,8 @@ public class MqttClient : IDisposable
 
         try
         {
+            _lastDiscoverySensors = sensors;
+
             var device = GetDeviceBlock();
 
             foreach (var sensor in sensors)
@@ -177,6 +180,7 @@ public class MqttClient : IDisposable
                 var config = BuildSensorDiscoveryConfig(sensor, device);
                 var topic = $"{DiscoveryPrefix}/{sensor.Type}/{_nodeId}/{sensor.UniqueId}/config";
                 await PublishRetainedAsync(topic, config);
+                await Task.Delay(100); // 100ms delay to avoid overwhelming HA
             }
 
             // Publish media_player discovery
@@ -390,6 +394,9 @@ public class MqttClient : IDisposable
 
             // Subscribe to command topics
             await SubscribeToCommandsAsync();
+
+            // Subscribe to Home Assistant status for birth message support
+            await SubscribeToHomeAssistantStatusAsync();
         }
         catch (Exception ex)
         {
@@ -410,7 +417,15 @@ public class MqttClient : IDisposable
             var topic = e.ApplicationMessage.Topic;
             var payload = Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment);
 
-            Console.WriteLine($"[MQTT] Received command: {topic} => {payload}");
+            Console.WriteLine($"[MQTT] Received: {topic} => {payload}");
+
+            // Handle Home Assistant birth message
+            if (topic == "homeassistant/status" && payload == "online")
+            {
+                Console.WriteLine("[MQTT] Home Assistant restarted — re-publishing birth message");
+                await PublishBirthMessageAsync();
+                return;
+            }
 
             // Route the command payload to the callback
             _onCommandReceived?.Invoke(payload);
@@ -450,6 +465,25 @@ public class MqttClient : IDisposable
         Console.WriteLine($"[MQTT] Subscribed to command topics: {mediaTopic}, {systemTopic}");
     }
 
+    /// <summary>
+    /// Subscribe to homeassistant/status so we can re-publish discovery
+    /// when Home Assistant restarts (birth message).
+    /// </summary>
+    private async Task SubscribeToHomeAssistantStatusAsync()
+    {
+        if (_mqtt?.IsConnected != true) return;
+
+        var mqttFactory = new MqttFactory();
+        var statusFilter = mqttFactory.CreateTopicFilterBuilder()
+            .WithTopic("homeassistant/status")
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await _mqtt.SubscribeAsync(statusFilter, CancellationToken.None);
+
+        Console.WriteLine("[MQTT] Subscribed to homeassistant/status for birth message support");
+    }
+
     #endregion
 
     #region Private: Publishing Helpers
@@ -477,6 +511,62 @@ public class MqttClient : IDisposable
             .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
         await _mqtt.PublishAsync(msg, CancellationToken.None);
+    }
+
+    #endregion
+
+    #region Private: Birth Message
+
+    /// <summary>
+    /// Re-publish availability online + all discovery configs.
+    /// Called on initial connect and when HA restarts (homeassistant/status = "online").
+    /// </summary>
+    private async Task PublishBirthMessageAsync()
+    {
+        if (_mqtt?.IsConnected != true) return;
+
+        try
+        {
+            // 1. Publish online availability (retained)
+            var availTopic = GetAvailabilityTopic();
+            var onlineMsg = new MqttApplicationMessageBuilder()
+                .WithTopic(availTopic)
+                .WithPayload(PayloadOnline)
+                .WithRetainFlag()
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            await _mqtt.PublishAsync(onlineMsg, CancellationToken.None);
+            Console.WriteLine("[MQTT] Birth: published online availability");
+
+            // 2. Re-publish all discovery messages with 100ms delay
+            if (_lastDiscoverySensors != null && _lastDiscoverySensors.Count > 0)
+            {
+                var device = GetDeviceBlock();
+
+                foreach (var sensor in _lastDiscoverySensors)
+                {
+                    var config = BuildSensorDiscoveryConfig(sensor, device);
+                    var topic = $"{DiscoveryPrefix}/{sensor.Type}/{_nodeId}/{sensor.UniqueId}/config";
+                    await PublishRetainedAsync(topic, config);
+                    await Task.Delay(100);
+                }
+
+                // Media player
+                var mediaConfig = BuildMediaPlayerDiscoveryConfig(device);
+                var mediaTopic = $"{DiscoveryPrefix}/media_player/{_nodeId}/media_player/config";
+                await PublishRetainedAsync(mediaTopic, mediaConfig);
+
+                Console.WriteLine($"[MQTT] Birth: re-published discovery for {_lastDiscoverySensors.Count} sensors + media_player");
+            }
+            else
+            {
+                Console.WriteLine("[MQTT] Birth: no discovery data cached, skipping discovery re-publish");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MQTT] Birth message error: {ex.Message}");
+        }
     }
 
     #endregion

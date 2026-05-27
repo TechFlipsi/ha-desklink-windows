@@ -74,7 +74,7 @@ public class HaApiClient
             ["device_id"] = deviceId,
             ["os_name"] = "Windows",
             ["os_version"] = Environment.OSVersion.VersionString,
-            ["manufacturer"] = "Custom",
+            ["manufacturer"] = "HA DeskLink",
             ["model"] = $"PC ({(is64 ? "x64" : "x86")})",
             ["supports_encryption"] = false,
             ["app_data"] = new Dictionary<string, object>
@@ -115,7 +115,7 @@ public class HaApiClient
             {
                 ["app_version"] = GetVersion(),
                 ["device_name"] = Environment.MachineName,
-                ["manufacturer"] = "Custom",
+                ["manufacturer"] = "HA DeskLink",
                 ["model"] = $"PC ({(is64 ? "x64" : "x86")})",
                 ["os_version"] = Environment.OSVersion.VersionString,
                 ["app_data"] = new Dictionary<string, object>
@@ -408,6 +408,6 @@ public class HaApiClient
             if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
         }
         catch { }
-        return "4.3.0";
+        return "4.4.0";
     }
 }
