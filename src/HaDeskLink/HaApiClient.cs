@@ -444,7 +444,7 @@ public class HaApiClient
         var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
         var fallbackVersion = assemblyVersion != null
             ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}"
-            : "4.4.1";
+            : "4.4.2";
 
         try
         {

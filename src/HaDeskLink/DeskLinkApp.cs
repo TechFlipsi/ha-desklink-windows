@@ -40,7 +40,6 @@ public class DeskLinkApp
     private MqttClient? _mqttClient;
     private MediaPlayer? _mediaPlayer;
     private System.Threading.Timer? _mediaTimer;
-    private bool _wasMqttConnected;
 
     public DeskLinkApp(Config config)
     {
@@ -120,6 +119,19 @@ public class DeskLinkApp
                 {
                     try { CommandHandler.Execute(cmd); }
                     catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT Cmd] Error: {ex}\n"); }
+                },
+                onConnectedCallback: () =>
+                {
+                    if (_sensors != null)
+                    {
+                        Task.Run(async () =>
+                        {
+                            try { await _mqttClient.PublishDiscoveryAsync(_sensors.CollectAll()); }
+                            catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] Discovery error: {ex}\n"); }
+                            try { await _mqttClient.PublishSensorStatesAsync(_sensors.CollectAll()); }
+                            catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] State error: {ex}\n"); }
+                        });
+                    }
                 });
             Task.Run(() => MqttConnectAsync(_cts.Token), _cts.Token);
         }
@@ -464,42 +476,14 @@ public class DeskLinkApp
     /// </summary>
     private async Task MqttConnectAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
-            {
-                if (_mqttClient != null)
-                {
-                    await _mqttClient.ConnectAsync();
-
-                    // Publish discovery for all sensors + media player on connect
-                    if (_mqttClient.IsConnected && _sensors != null)
-                    {
-                        try
-                        {
-                            await _mqttClient.PublishDiscoveryAsync(_sensors.CollectAll());
-                        }
-                        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] Discovery error: {ex}\n"); }
-
-                        // Publish current states on connect
-                        try
-                        {
-                            await _mqttClient.PublishSensorStatesAsync(_sensors.CollectAll());
-                        }
-                        catch (Exception ex) { File.AppendAllText(Program.LogFile(), $"[MQTT] State publish error: {ex}\n"); }
-                    }
-                }
-
-                // Wait a bit before checking if we need to reconnect
-                await Task.Delay(TimeSpan.FromSeconds(5), ct);
-            }
-            catch (OperationCanceledException) { break; }
-            catch (Exception ex)
-            {
-                File.AppendAllText(Program.LogFile(), $"[MQTT] Connect loop error: {ex}\n");
-                try { await Task.Delay(TimeSpan.FromSeconds(30), ct); }
-                catch { break; }
-            }
+            await _mqttClient.ConnectAsync();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            File.AppendAllText(Program.LogFile(), $"[MQTT] Connect error: {ex}\n");
         }
     }
 
@@ -557,7 +541,7 @@ public class DeskLinkApp
         var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
         var fallbackVersion = assemblyVersion != null
             ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}"
-            : "4.4.1";
+            : "4.4.2";
 
         try
         {
