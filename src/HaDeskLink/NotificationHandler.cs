@@ -161,7 +161,7 @@ public class NotificationToast : Form
         _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
         _autoCloseTimer.Start();
 
-        Load += (s, e) => PositionTopRight();
+        Load += (s, e) => PositionBottomLeft();
     }
 
     private int CalculateHeight(string message, List<NotificationAction>? actions)
@@ -252,10 +252,10 @@ public class NotificationToast : Form
         Close();
     }
 
-    private void PositionTopRight()
+    private void PositionBottomLeft()
     {
         var screen = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
-        Location = new Point(screen.Right - Width - 20, screen.Top + 20);
+        Location = new Point(screen.Left + 20, screen.Bottom - Height - 20);
     }
 
     protected override void OnMouseEnter(EventArgs e) { _autoCloseTimer.Stop(); base.OnMouseEnter(e); }
