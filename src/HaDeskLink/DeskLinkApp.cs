@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,6 +51,9 @@ public class DeskLinkApp
 
     public void Run()
     {
+        // Clean up any stale update pending marker
+        try { File.Delete(Path.Combine(Config.GetConfigDir(), ".update_pending")); } catch { }
+
         // Load language
         Localization.LoadLanguage(_config.Language);
 
@@ -503,6 +507,10 @@ public class DeskLinkApp
     {
         try
         {
+            // Write pending file to prevent update loops
+            var pendingFile = Path.Combine(Config.GetConfigDir(), ".update_pending");
+            await File.WriteAllTextAsync(pendingFile, GetVersion());
+
             var tempDir = Path.Combine(Path.GetTempPath(), "HA_DeskLink_Update");
             Directory.CreateDirectory(tempDir);
             var installerPath = Path.Combine(tempDir, "HA_DeskLink_Setup.exe");
@@ -515,6 +523,8 @@ public class DeskLinkApp
 
             if (!File.Exists(installerPath) || new FileInfo(installerPath).Length < 1000000)
             {
+                // Download failed or suspiciously small — abort
+                try { File.Delete(pendingFile); } catch { }
                 MessageBox.Show(Localization.Get("update_download_failed"),
                     Localization.Get("update_check_failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -535,6 +545,8 @@ public class DeskLinkApp
         }
         catch (Exception ex)
         {
+            // Clean up pending file on error
+            try { File.Delete(Path.Combine(Config.GetConfigDir(), ".update_pending")); } catch { }
             MessageBox.Show(Localization.Get("update_failed", ex.Message),
                 Localization.Get("update_failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -542,13 +554,24 @@ public class DeskLinkApp
 
     private static string GetVersion()
     {
+        var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
+        var fallbackVersion = assemblyVersion != null
+            ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}"
+            : "4.4.0";
+
         try
         {
             var vfile = Path.Combine(AppContext.BaseDirectory, "VERSION");
-            if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
+            if (File.Exists(vfile))
+            {
+                var fileVer = File.ReadAllText(vfile).Trim();
+                if (!string.IsNullOrEmpty(fileVer) && fileVer.Length >= 5)
+                    return fileVer;
+            }
         }
         catch { }
-        return "4.4.0";
+
+        return fallbackVersion;
     }
 
     /// <summary>
