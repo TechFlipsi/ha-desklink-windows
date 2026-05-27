@@ -224,12 +224,6 @@ public class SettingsWindow : Form
         AddTooltip(mqttTestBtn, "Verbindung zum MQTT-Broker testen, bevor gespeichert wird");
         mqttTable.Controls.Add(mqttTestBtn, 1, 7);
 
-        // Auto-configure button
-        var mqttAutoBtn = MakeButton("🔧 " + Localization.Get("mqtt_auto_configure"), AccentBlue, OnMqttAutoConfigure);
-        AddTooltip(mqttAutoBtn, "MQTT-Broker automatisch über Home Assistant REST API konfigurieren");
-        mqttTable.Controls.Add(mqttAutoBtn, 0, 8);
-        mqttTable.SetColumnSpan(mqttAutoBtn, 2);
-
         // Status label
         _mqttStatusLabel = new Label
         {
@@ -239,7 +233,7 @@ public class SettingsWindow : Form
             AutoSize = true,
             Margin = new Padding(0, 2, 0, 0),
         };
-        mqttTable.Controls.Add(_mqttStatusLabel, 0, 9);
+        mqttTable.Controls.Add(_mqttStatusLabel, 0, 8);
         mqttTable.SetColumnSpan(_mqttStatusLabel, 2);
 
         content.Controls.Add(mqttTable);
@@ -876,68 +870,6 @@ public class SettingsWindow : Form
         {
             _mqttStatusLabel.Text = "● " + Localization.Get("mqtt_disconnected");
             _mqttStatusLabel.ForeColor = WarningOrange;
-        }
-    }
-
-    private async void OnMqttAutoConfigure(object? sender, EventArgs e)
-    {
-        var btn = (Button)sender!;
-        btn.Enabled = false;
-        btn.Text = "Konfiguriere...";
-        _mqttStatusLabel.Text = "⏳ " + Localization.Get("mqtt_connecting");
-        _mqttStatusLabel.ForeColor = Color.Gray;
-
-        try
-        {
-            var fallbackHost = _mqttFallbackBox.Text.Trim();
-            var result = await System.Threading.Tasks.Task.Run(() =>
-                MqttSetupHelper.AutoConfigureAsync(_config.HaUrl, _config.HaToken, string.IsNullOrEmpty(fallbackHost) ? null : fallbackHost));
-
-            if (result.Success)
-            {
-                _mqttEnabledCheck.Checked = true;
-                _mqttBrokerBox.Text = result.BrokerHost ?? "";
-                _mqttPortBox.Text = result.BrokerPort.ToString();
-                _mqttUserBox.Text = result.Username ?? "";
-                _mqttPassBox.Text = result.Password ?? "";
-                _mqttSslCheck.Checked = result.UseSsl;
-                _config.MqttEnabled = true;
-                _config.MqttBroker = result.BrokerHost ?? "";
-                _config.MqttPort = result.BrokerPort;
-                _config.MqttUsername = result.Username ?? "";
-                _config.MqttPassword = result.Password ?? "";
-                _config.MqttUseSsl = result.UseSsl;
-                _config.MqttAutoConfigured = true;
-                _config.Save();
-                _mqttStatusLabel.Text = "✓ MQTT erfolgreich konfiguriert!";
-                _mqttStatusLabel.ForeColor = SuccessGreen;
-            }
-            else if (result.MosquittoNotInstalled)
-            {
-                _mqttStatusLabel.Text = "⚠️ Mosquitto nicht gefunden. Bitte in HA installieren.";
-                _mqttStatusLabel.ForeColor = WarningOrange;
-                MessageBox.Show(
-                    "Mosquitto MQTT-Broker wurde nicht gefunden.\n\n" +
-                    "Bitte installiere den Mosquitto Broker Add-on in Home Assistant:\n" +
-                    "Einstellungen → Add-ons → Mosquitto Broker → Installieren & Starten\n\n" +
-                    "Oder konfiguriere den MQTT-Broker manuell.",
-                    "MQTT nicht verfügbar", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            else
-            {
-                _mqttStatusLabel.Text = $"⚠️ Konfiguration fehlgeschlagen: {result.ErrorMessage ?? "Unbekannter Fehler"}";
-                _mqttStatusLabel.ForeColor = WarningOrange;
-            }
-        }
-        catch (Exception ex)
-        {
-            _mqttStatusLabel.Text = $"✗ Fehler: {ex.Message}";
-            _mqttStatusLabel.ForeColor = DangerRed;
-        }
-        finally
-        {
-            btn.Enabled = true;
-            btn.Text = "🔧 " + Localization.Get("mqtt_auto_configure");
         }
     }
 
