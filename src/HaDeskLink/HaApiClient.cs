@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -285,10 +286,38 @@ public class HaApiClient
         await _http.PostAsync(WebhookUrl, new StringContent(payload, Encoding.UTF8, "application/json"));
     }
 
+    // Update loop protection: cache last offered version + timestamp
+    private static string? _lastOfferedVersion = null;
+    private static DateTime _lastCheckTime = DateTime.MinValue;
+    private static readonly TimeSpan _checkCooldown = TimeSpan.FromHours(1);
+
     public async Task<string?> CheckForUpdateAsync(bool includePrerelease = false)
     {
         try
         {
+            // Update loop protection: cooldown between checks
+            if (DateTime.Now - _lastCheckTime < _checkCooldown && _lastOfferedVersion != null)
+                return null;
+
+            // Update loop protection: check if an update is already pending
+            try
+            {
+                var pendingFile = Path.Combine(_configDir, ".update_pending");
+                if (File.Exists(pendingFile))
+                {
+                    var pendingVer = File.ReadAllText(pendingFile).Trim();
+                    if (!string.IsNullOrEmpty(pendingVer))
+                    {
+                        var pendingVersion = ParseVersion(pendingVer);
+                        var installedVer = ParseVersion(GetVersion());
+                        // If pending version is same or newer, don't offer update again
+                        if (pendingVersion.CompareTo(installedVer) >= 0)
+                            return null;
+                    }
+                }
+            }
+            catch { }
+
             using var ghClient = new HttpClient();
             ghClient.DefaultRequestHeaders.Add("User-Agent", "HA-DeskLink");
 
@@ -328,6 +357,16 @@ public class HaApiClient
                             bestUrl = asset.GetProperty("browser_download_url").GetString();
                     }
                 }
+            }
+
+            // Update loop protection: skip if we already offered this version
+            if (bestTag != null && bestTag == _lastOfferedVersion)
+                return null;
+
+            if (bestTag != null)
+            {
+                _lastOfferedVersion = bestTag;
+                _lastCheckTime = DateTime.Now;
             }
 
             return bestUrl;
@@ -402,12 +441,23 @@ public class HaApiClient
 
     private static string GetVersion()
     {
+        var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
+        var fallbackVersion = assemblyVersion != null
+            ? $"{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}"
+            : "4.4.0";
+
         try
         {
             var vfile = Path.Combine(AppContext.BaseDirectory, "VERSION");
-            if (File.Exists(vfile)) return File.ReadAllText(vfile).Trim();
+            if (File.Exists(vfile))
+            {
+                var fileVer = File.ReadAllText(vfile).Trim();
+                if (!string.IsNullOrEmpty(fileVer) && fileVer.Length >= 5)
+                    return fileVer;
+            }
         }
         catch { }
-        return "4.4.0";
+
+        return fallbackVersion;
     }
 }
