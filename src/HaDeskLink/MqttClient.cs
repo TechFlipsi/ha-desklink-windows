@@ -56,6 +56,7 @@ public class MqttClient : IDisposable
     private readonly string _nodeId;
     private readonly string _version;
     private readonly Action<string>? _onCommandReceived;
+    private readonly Action? _onConnectedCallback;
     private readonly string _configDir;
 
     private IMqttClient? _mqtt;
@@ -90,9 +91,11 @@ public class MqttClient : IDisposable
     /// <param name="configDir">Config directory for reading registration.json.</param>
     /// <param name="version">App version string for discovery configs.</param>
     /// <param name="onCommandReceived">Callback invoked when a command is received via MQTT.</param>
+    /// <param name="onConnectedCallback">Optional callback invoked when connection is established.</param>
     public MqttClient(string broker, int port, string? username, string? password,
         bool useSsl, string configDir, string version,
-        Action<string>? onCommandReceived = null)
+        Action<string>? onCommandReceived = null,
+        Action? onConnectedCallback = null)
     {
         _broker = broker;
         _port = port;
@@ -102,6 +105,7 @@ public class MqttClient : IDisposable
         _configDir = configDir;
         _version = version;
         _onCommandReceived = onCommandReceived;
+        _onConnectedCallback = onConnectedCallback;
         _deviceId = LoadDeviceId();
         _nodeId = SanitizeNodeId(_deviceId);
     }
@@ -397,6 +401,23 @@ public class MqttClient : IDisposable
 
             // Subscribe to Home Assistant status for birth message support
             await SubscribeToHomeAssistantStatusAsync();
+
+            // Notify application that connection is established
+            _onConnectedCallback?.Invoke();
+
+            // Publish discovery + states on (re)connect if we have cached sensor data
+            if (_lastDiscoverySensors != null)
+            {
+                try
+                {
+                    await PublishDiscoveryAsync(_lastDiscoverySensors);
+                    await PublishSensorStatesAsync(_lastDiscoverySensors);
+                }
+                catch (Exception discoveryEx)
+                {
+                    Console.WriteLine($"[MQTT] Discovery on connect error: {discoveryEx.Message}");
+                }
+            }
         }
         catch (Exception ex)
         {

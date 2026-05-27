@@ -142,7 +142,7 @@ public class SetupWizard : Form
     {
         // Clear the main panel and rebuild with MQTT step
         _mainPanel.Controls.Clear();
-        _mainPanel.RowCount = 9;
+        _mainPanel.RowCount = 7;
 
         // Title
         var stepTitle = new Label
@@ -189,7 +189,7 @@ public class SetupWizard : Form
         // MQTT description
         var mqttDesc = new Label
         {
-            Text = "MQTT erm\u00f6glicht Echtzeit-Mediensteuerung und schnellere Sensor-Updates.\nHA DeskLink kann den MQTT-Broker automatisch konfigurieren.",
+            Text = "MQTT erm\u00f6glicht Echtzeit-Mediensteuerung und schnellere Sensor-Updates.\nBitte geben Sie Ihre MQTT-Broker-Daten ein.",
             Font = new Font("", 9),
             ForeColor = Color.DarkBlue,
             AutoSize = true,
@@ -209,19 +209,6 @@ public class SetupWizard : Form
         _mainPanel.Controls.Add(mqttStatus, 0, 3);
         _mainPanel.SetColumnSpan(mqttStatus, 2);
 
-        // "MQTT nutzen" button
-        var mqttBtn = new Button
-        {
-            Text = "MQTT nutzen",
-            Size = new Size(150, 40),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            BackColor = Color.FromArgb(0, 120, 215),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-        };
-        mqttBtn.FlatAppearance.BorderSize = 0;
-        _mainPanel.Controls.Add(mqttBtn, 1, 4);
-
         // "Ohne MQTT fortfahren" button
         var skipBtn = new Button
         {
@@ -231,25 +218,15 @@ public class SetupWizard : Form
             FlatStyle = FlatStyle.Flat,
         };
         skipBtn.FlatAppearance.BorderSize = 0;
-        _mainPanel.Controls.Add(skipBtn, 0, 5);
+        _mainPanel.Controls.Add(skipBtn, 0, 4);
 
-        // Progress bar (hidden initially)
-        var progressBar = new ProgressBar
-        {
-            Style = ProgressBarStyle.Marquee,
-            Visible = false,
-            Size = new Size(400, 20),
-        };
-        _mainPanel.Controls.Add(progressBar, 0, 6);
-        _mainPanel.SetColumnSpan(progressBar, 2);
-
-        // Manual config fields (hidden initially, shown if auto-config fails)
+        // Manual config fields (shown immediately)
         var manualPanel = new TableLayoutPanel
         {
             ColumnCount = 2,
             RowCount = 5,
             AutoSize = true,
-            Visible = false,
+            Visible = true,
             Margin = new Padding(0, 4, 0, 0),
         };
         manualPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
@@ -305,101 +282,10 @@ public class SetupWizard : Form
         manualPanel.Controls.Add(new Label(), 0, 5);
         manualPanel.Controls.Add(manualBtnPanel, 1, 5);
 
-        _mainPanel.Controls.Add(manualPanel, 0, 7);
+        _mainPanel.Controls.Add(manualPanel, 0, 5);
         _mainPanel.SetColumnSpan(manualPanel, 2);
 
-        // Retry button for Mosquitto (hidden initially)
-        var retryBtn = new Button
-        {
-            Text = "Erneut pr\u00fcfen",
-            Size = new Size(140, 36),
-            Anchor = AnchorStyles.Top | AnchorStyles.Left,
-            BackColor = Color.FromArgb(0, 120, 215),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Visible = false,
-        };
-        retryBtn.FlatAppearance.BorderSize = 0;
-        _mainPanel.Controls.Add(retryBtn, 0, 8);
-
         // ── Button handlers ──
-
-        mqttBtn.Click += async (s, args) =>
-        {
-            mqttBtn.Enabled = false;
-            mqttBtn.Text = "Konfiguriere...";
-            skipBtn.Enabled = false;
-            progressBar.Visible = true;
-            mqttStatus.Text = "Verbinde mit MQTT-Broker...";
-            mqttStatus.ForeColor = Color.Gray;
-
-            try
-            {
-                var result = await MqttSetupHelper.AutoConfigureAsync(_savedHaUrl, _savedHaToken);
-
-                if (result.Success)
-                {
-                    var config = Config.Load();
-                    config.MqttEnabled = true;
-                    config.MqttBroker = result.BrokerHost ?? "";
-                    config.MqttPort = result.BrokerPort;
-                    config.MqttUsername = result.Username ?? "";
-                    config.MqttPassword = result.Password ?? "";
-                    config.MqttUseSsl = result.UseSsl;
-                    config.MqttAutoConfigured = true;
-                    config.HaUrl = _savedHaUrl;
-                    config.HaToken = _savedHaToken;
-                    config.VerifySsl = _sslCheck.Checked;
-                    config.Save();
-
-                    mqttStatus.Text = $"\u2713 MQTT erfolgreich konfiguriert!\nBroker: {result.BrokerHost}:{result.BrokerPort}";
-                    mqttStatus.ForeColor = Color.Green;
-                    mqttBtn.Text = "\u2713 Konfiguriert";
-                    mqttBtn.BackColor = Color.FromArgb(0, 134, 100);
-                    skipBtn.Enabled = true;
-                    MqttConfigured = true;
-
-                    await Task.Delay(500);
-                    DialogResult = DialogResult.OK;
-                    Close();
-                }
-                else if (result.MosquittoNotInstalled)
-                {
-                    progressBar.Visible = false;
-                    mqttStatus.Text = "\u26a0\ufe0f Mosquitto MQTT-Broker nicht gefunden.\n\nInstalliere den Mosquitto Broker Add-on in Home Assistant:\nEinstellungen \u2192 Add-ons \u2192 Mosquitto Broker installieren & starten.";
-                    mqttStatus.ForeColor = Color.FromArgb(180, 80, 0);
-                    retryBtn.Visible = true;
-                    mqttBtn.Enabled = true;
-                    mqttBtn.Text = "MQTT nutzen";
-                    skipBtn.Enabled = true;
-                }
-                else
-                {
-                    progressBar.Visible = false;
-                    mqttStatus.Text = $"\u26a0\ufe0f Automatische Konfiguration fehlgeschlagen:\n{result.ErrorMessage ?? "Unbekannter Fehler"}\n\nBitte MQTT-Daten manuell eingeben:";
-                    mqttStatus.ForeColor = Color.FromArgb(180, 80, 0);
-                    manualPanel.Visible = true;
-                    mqttBtn.Enabled = true;
-                    mqttBtn.Text = "MQTT nutzen";
-                    skipBtn.Enabled = true;
-                }
-            }
-            catch (Exception ex)
-            {
-                progressBar.Visible = false;
-                mqttStatus.Text = $"\u2717 Fehler: {ex.Message}";
-                mqttStatus.ForeColor = Color.Red;
-                mqttBtn.Enabled = true;
-                mqttBtn.Text = "MQTT nutzen";
-                skipBtn.Enabled = true;
-            }
-        };
-
-        retryBtn.Click += async (s, args) =>
-        {
-            retryBtn.Visible = false;
-            mqttBtn.PerformClick();
-        };
 
         manualTestBtn.Click += async (s, args) =>
         {
