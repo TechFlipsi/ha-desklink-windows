@@ -1,4 +1,4 @@
-## v4.3.0 (2026-05-24)
+## v4.4.0 (2026-05-24)
 
 ### MQTT Support (optional)
 - MQTT support (optional, auto-configure from Home Assistant)
