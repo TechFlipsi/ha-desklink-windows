@@ -11,7 +11,9 @@
 // GNU General Public License for more details.
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -40,11 +42,12 @@ public class MqttSetupResult
 /// Auto-configures MQTT by querying the Home Assistant REST API for
 /// the MQTT broker details, then testing the connection.
 /// 
-/// Strategy:
-/// 1. Check if MQTT integration exists in HA (via /api/config -> components)
-/// 2. Try to extract broker details from config entries API (credentials may be hidden)
-/// 3. Use the HA host as broker host (Mosquitto add-on runs on same host)
-/// 4. Try multiple connection strategies: discovered creds, anonymous, HA token
+/// Strategy (fixed):
+/// 1. Check if MQTT integration exists in HA (via /api/config -> components).
+///    This is the AUTHORITY — "mqtt" in components means MQTT IS installed.
+/// 2. Try to connect with multiple strategies (anonymous, HA token).
+/// 3. Multi-address fallback for domain names and local addresses.
+/// 4. Never reports MQTT as "not installed" when /api/config shows it.
 /// </summary>
 public static class MqttSetupHelper
 {
@@ -53,33 +56,28 @@ public static class MqttSetupHelper
     /// establish a working MQTT connection. Uses the configured HA URL
     /// (works with IP addresses AND domain names like home.kirchweger.de).
     /// </summary>
-    public static async Task<MqttSetupResult> AutoConfigureAsync(string haUrl, string haToken)
+    public static async Task<MqttSetupResult> AutoConfigureAsync(string haUrl, string haToken, string? fallbackHost = null)
     {
         var result = new MqttSetupResult();
 
         try
         {
             // ── Step 1: extract the host from the configured HA URL ──
-            // This works with IPs (192.168.178.33) AND domains (home.kirchweger.de)
             var haUri = new Uri(haUrl.TrimEnd('/'));
             var haHost = haUri.Host;
-            var haPort = haUri.Port; // -1 if not specified, else the actual port
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             http.DefaultRequestHeaders.Add("Authorization", $"Bearer {haToken}");
 
             // ── Step 2: check if MQTT integration exists in HA ──
+            // THIS IS THE AUTHORITATIVE CHECK. "mqtt" in components = installed.
             bool mqttInstalled = false;
-            string? brokerHost = null;
-            int brokerPort = 0;
-            string? brokerUser = null;
-            string? brokerPass = null;
-            bool brokerSsl = false;
+            bool apiReachable = false;
 
             try
             {
-                // Check /api/config -> components list for "mqtt"
                 var configResp = await http.GetStringAsync($"{haUrl.TrimEnd('/')}/api/config");
+                apiReachable = true;
                 using var configDoc = JsonDocument.Parse(configResp);
 
                 if (configDoc.RootElement.TryGetProperty("components", out var components)
@@ -97,13 +95,23 @@ public static class MqttSetupHelper
             }
             catch
             {
-                // If we can't reach the API, assume MQTT might be there and try anyway
-                mqttInstalled = true; // give it a shot
+                // If we can't reach the API, we can't determine if MQTT is installed.
+                // We'll still try to connect and give useful feedback.
             }
 
-            // ── Step 3: try to extract broker details from config entries ──
-            // HA protects the actual credentials, so we may get empty data here.
-            // But sometimes the broker host is visible.
+            // ── Step 3: if MQTT integration is NOT in HA components, stop here ──
+            if (apiReachable && !mqttInstalled)
+            {
+                result.MosquittoNotInstalled = true;
+                result.ErrorMessage = "MQTT Integration nicht in Home Assistant gefunden. Bitte MQTT in HA aktivieren.";
+                return result;
+            }
+
+            // ── Step 4: try to extract broker host from config entries (best-effort) ──
+            string? apiBrokerHost = null;
+            int brokerPort = 1883;
+            bool brokerSsl = false;
+
             try
             {
                 var entriesResp = await http.GetStringAsync($"{haUrl.TrimEnd('/')}/api/config/config_entries/entry");
@@ -116,24 +124,12 @@ public static class MqttSetupHelper
                         var domain = entry.TryGetProperty("domain", out var d) ? d.GetString() : null;
                         if (domain != "mqtt") continue;
 
-                        // Found the MQTT config entry
-                        if (entry.TryGetProperty("title", out var title))
-                        {
-                            // "core-mosquitto" title means Mosquitto add-on
-                            // This confirms the broker is on the same host
-                        }
-
                         if (entry.TryGetProperty("data", out var data))
                         {
-                            // Broker host might be available
                             if (data.TryGetProperty("broker", out var b))
-                                brokerHost = b.GetString();
+                                apiBrokerHost = b.GetString();
                             if (data.TryGetProperty("port", out var p) && p.TryGetInt32(out var portVal))
                                 brokerPort = portVal;
-                            if (data.TryGetProperty("username", out var u))
-                                brokerUser = u.GetString();
-                            if (data.TryGetProperty("password", out var pw))
-                                brokerPass = pw.GetString();
                             if (data.TryGetProperty("ssl", out var ssl) && ssl.ValueKind == JsonValueKind.True)
                                 brokerSsl = true;
                         }
@@ -143,102 +139,56 @@ public static class MqttSetupHelper
             }
             catch
             {
-                // Config entries API may not return credentials, that's fine
+                // Config entries API may fail — that's fine, we fall back to HA host
             }
 
-            // ── Step 4: determine broker host ──
-            // If the API didn't reveal the broker host, use the HA host.
-            // For domain names (home.kirchweger.de), this means the MQTT broker
-            // is accessible at the same domain. For IPs, same thing.
-            if (string.IsNullOrEmpty(brokerHost))
-            {
-                brokerHost = haHost;
-            }
-
-            // Default port unless we found one from the API
+            // If API didn't reveal host, use HA host
+            var primaryHost = apiBrokerHost ?? haHost;
             if (brokerPort <= 0)
-            {
-                // Check if HA is running on a custom port — Mosquitto is
-                // always on 1883 (or 8883 for SSL) regardless of HA's port
                 brokerPort = brokerSsl ? 8883 : 1883;
-            }
 
-            result.BrokerHost = brokerHost;
+            // ── Step 5: build list of broker addresses to try ──
+            var brokerAddresses = BuildAddressList(primaryHost, haHost, fallbackHost);
+
             result.BrokerPort = brokerPort;
             result.UseSsl = brokerSsl;
 
-            // ── Step 5: check if MQTT is installed at all ──
-            if (!mqttInstalled)
+            // ── Step 6: try to connect with multiple strategies across all addresses ──
+            // Strategy A: Anonymous connection (most Mosquitto add-on setups allow this)
+            foreach (var address in brokerAddresses)
             {
-                // Double-check by trying to connect anyway — the components
-                // list might not include all loaded integrations
-            }
-
-            // ── Step 6: attempt to connect with multiple strategies ──
-
-            // Strategy A: with discovered credentials (or anonymous if none found)
-            if (await TestConnectionAsync(brokerHost, brokerPort, brokerUser, brokerPass, brokerSsl))
-            {
-                result.Success = true;
-                result.Username = brokerUser;
-                result.Password = brokerPass;
-                return result;
-            }
-
-            // Strategy B: try anonymous access (Mosquitto add-on default allows
-            // anonymous from local network)
-            if (brokerUser != null || brokerPass != null)
-            {
-                if (await TestConnectionAsync(brokerHost, brokerPort, null, null, brokerSsl))
+                if (await TestConnectionAsync(address, brokerPort, null, null, brokerSsl))
                 {
                     result.Success = true;
+                    result.BrokerHost = address;
                     result.Username = null;
                     result.Password = null;
                     return result;
                 }
             }
 
-            // Strategy C: try with the HA access token as MQTT password
-            // Some HA setups accept this
+            // Strategy B: HA long-lived access token as MQTT password
             if (!string.IsNullOrEmpty(haToken))
             {
-                if (await TestConnectionAsync(brokerHost, brokerPort, "homeassistant", haToken, brokerSsl))
+                foreach (var address in brokerAddresses)
                 {
-                    result.Success = true;
-                    result.Username = "homeassistant";
-                    result.Password = haToken;
-                    return result;
+                    if (await TestConnectionAsync(address, brokerPort, "homeassistant", haToken, brokerSsl))
+                    {
+                        result.Success = true;
+                        result.BrokerHost = address;
+                        result.Username = "homeassistant";
+                        result.Password = haToken;
+                        return result;
+                    }
                 }
             }
 
-            // Strategy D: if HA runs on a non-standard port, try localhost
-            // (Mosquitto might only listen on localhost in some setups)
-            if (brokerHost != "localhost" && brokerHost != "127.0.0.1")
-            {
-                if (await TestConnectionAsync("localhost", brokerPort, null, null, brokerSsl))
-                {
-                    result.Success = true;
-                    result.BrokerHost = "localhost";
-                    result.Username = null;
-                    result.Password = null;
-                    return result;
-                }
-
-                if (await TestConnectionAsync("127.0.0.1", brokerPort, null, null, brokerSsl))
-                {
-                    result.Success = true;
-                    result.BrokerHost = "127.0.0.1";
-                    result.Username = null;
-                    result.Password = null;
-                    return result;
-                }
-            }
-
-            // ── Step 7: all attempts failed ──
-            result.MosquittoNotInstalled = true;
-            result.ErrorMessage = "Could not connect to the MQTT broker. " +
-                "Please make sure the Mosquitto broker add-on is installed and running in Home Assistant " +
-                "(Settings → Add-ons → Mosquitto Broker).";
+            // ── Step 7: all connection attempts failed ──
+            // MQTT is installed (we confirmed via /api/config), but we can't connect.
+            // This is an AUTHENTICATION / REACHABILITY problem, NOT an installation problem.
+            result.MosquittoNotInstalled = false; // MQTT IS installed — we confirmed it
+            result.BrokerHost = primaryHost;
+            result.ErrorMessage = $"MQTT Broker gefunden unter {primaryHost}:{brokerPort}, aber Authentifizierung fehlgeschlagen. Bitte manuell konfigurieren.";
         }
         catch (Exception ex)
         {
@@ -247,6 +197,63 @@ public static class MqttSetupHelper
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Build an ordered list of broker addresses to attempt.
+    /// For domain names, tries the domain first then resolved IPs.
+    /// For IPs, uses them directly. Also adds localhost as last resort.
+    /// </summary>
+    private static List<string> BuildAddressList(string primaryHost, string haHost, string? fallbackHost)
+    {
+        var addresses = new List<string>();
+
+        // Primary host always first
+        addresses.Add(primaryHost);
+
+        // If primary is a domain and different from haHost, add haHost too
+        if (primaryHost != haHost && !string.IsNullOrEmpty(haHost))
+            addresses.Add(haHost);
+
+        // If the host is a domain name, try to resolve it to IPs
+        if (!IsIpAddress(primaryHost))
+        {
+            try
+            {
+                var ips = Dns.GetHostAddresses(primaryHost);
+                foreach (var ip in ips)
+                {
+                    var ipStr = ip.ToString();
+                    if (!addresses.Contains(ipStr))
+                        addresses.Add(ipStr);
+                }
+            }
+            catch
+            {
+                // DNS resolution failed — just continue with the domain
+            }
+        }
+
+        // Add fallback host if provided and different
+        if (!string.IsNullOrEmpty(fallbackHost) && !addresses.Contains(fallbackHost))
+            addresses.Add(fallbackHost);
+
+        // Add localhost/127.0.0.1 as last resort (only if not already localhost)
+        if (!addresses.Contains("localhost") && !addresses.Contains("127.0.0.1"))
+        {
+            addresses.Add("localhost");
+            addresses.Add("127.0.0.1");
+        }
+
+        return addresses;
+    }
+
+    /// <summary>
+    /// Check if a host string is an IPv4 or IPv6 address.
+    /// </summary>
+    private static bool IsIpAddress(string host)
+    {
+        return IPAddress.TryParse(host, out _);
     }
 
     /// <summary>

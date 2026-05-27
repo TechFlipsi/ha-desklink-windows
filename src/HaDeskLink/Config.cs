@@ -92,6 +92,11 @@ public class Config
     public string MqttPasswordEncrypted { get; set; } = "";  // encrypted version for persistence
     public bool MqttUseSsl { get; set; } = false;
     public bool MqttAutoConfigured { get; set; } = false;    // set by auto-setup
+    /// <summary>
+    /// Fallback MQTT broker address for auto-configuration (e.g., local network IP
+    /// when HA URL is a domain name that may not resolve MQTT correctly).
+    /// </summary>
+    public string MqttBrokerFallback { get; set; } = "";
 
     private string ConfigPath => Path.Combine(ConfigDir, "config.json");
 
@@ -226,7 +231,8 @@ public class Config
             MqttPassword = "", // NEVER save plaintext password
             MqttPasswordEncrypted = MqttPasswordEncrypted,
             MqttUseSsl = MqttUseSsl,
-            MqttAutoConfigured = MqttAutoConfigured
+            MqttAutoConfigured = MqttAutoConfigured,
+            MqttBrokerFallback = MqttBrokerFallback
         };
 
         var json = JsonSerializer.Serialize(saveConfig, new JsonSerializerOptions { WriteIndented = true });
