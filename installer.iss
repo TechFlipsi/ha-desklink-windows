@@ -1,8 +1,6 @@
 ; HA DeskLink Inno Setup Installer
 #define AppName "HA DeskLink"
 #define AppExe "HA_DeskLink.exe"
-; Version is read from VERSION file by CI — keep this in sync
-#define AppVer FILEVERSION; ReadIni("VERSION","","","4.4.1")
 
 [Setup]
 AppName={#AppName}
