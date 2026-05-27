@@ -44,6 +44,7 @@ public class SettingsWindow : Form
     private TextBox _mqttUserBox = null!;
     private TextBox _mqttPassBox = null!;
     private CheckBox _mqttSslCheck = null!;
+    private TextBox _mqttFallbackBox = null!;
     private Label _mqttStatusLabel = null!;
 
     // Dark theme colors
@@ -178,7 +179,7 @@ public class SettingsWindow : Form
         // ═══════════════════════════════════════════
         content.Controls.Add(MakeSectionHeader("📡 " + Localization.Get("mqtt_settings")));
 
-        var mqttTable = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 8, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 5, 0, 15) };
+        var mqttTable = new TableLayoutPanel { Dock = DockStyle.Top, ColumnCount = 2, RowCount = 10, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 5, 0, 15) };
         mqttTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
         mqttTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
@@ -212,10 +213,21 @@ public class SettingsWindow : Form
         mqttTable.Controls.Add(_mqttSslCheck, 0, 5);
         mqttTable.SetColumnSpan(_mqttSslCheck, 2);
 
+        // Fallback broker address
+        mqttTable.Controls.Add(MakeLabel("Fallback-Adresse"), 0, 6);
+        _mqttFallbackBox = new TextBox { Dock = DockStyle.Fill };
+        AddTooltip(_mqttFallbackBox, "Alternative MQTT-Broker-Adresse (z.B. lokale IP), falls die Hauptadresse nicht erreichbar ist. Leer lassen für keinen Fallback.");
+        mqttTable.Controls.Add(_mqttFallbackBox, 1, 6);
+
+        mqttTable.Controls.Add(MakeLabel("Verbindung testen"), 0, 7);
+        var mqttTestBtn = MakeButton("🔌 Verbindung testen", Color.FromArgb(0, 134, 100), OnMqttTestConnection);
+        AddTooltip(mqttTestBtn, "Verbindung zum MQTT-Broker testen, bevor gespeichert wird");
+        mqttTable.Controls.Add(mqttTestBtn, 1, 7);
+
         // Auto-configure button
         var mqttAutoBtn = MakeButton("🔧 " + Localization.Get("mqtt_auto_configure"), AccentBlue, OnMqttAutoConfigure);
         AddTooltip(mqttAutoBtn, "MQTT-Broker automatisch über Home Assistant REST API konfigurieren");
-        mqttTable.Controls.Add(mqttAutoBtn, 0, 6);
+        mqttTable.Controls.Add(mqttAutoBtn, 0, 8);
         mqttTable.SetColumnSpan(mqttAutoBtn, 2);
 
         // Status label
@@ -227,7 +239,7 @@ public class SettingsWindow : Form
             AutoSize = true,
             Margin = new Padding(0, 2, 0, 0),
         };
-        mqttTable.Controls.Add(_mqttStatusLabel, 0, 7);
+        mqttTable.Controls.Add(_mqttStatusLabel, 0, 9);
         mqttTable.SetColumnSpan(_mqttStatusLabel, 2);
 
         content.Controls.Add(mqttTable);
@@ -445,6 +457,7 @@ public class SettingsWindow : Form
         _config.MqttPassword = _mqttPassBox.Text;
         _config.MqttUseSsl = _mqttSslCheck.Checked;
         _config.MqttAutoConfigured = false; // manual save
+        _config.MqttBrokerFallback = _mqttFallbackBox.Text.Trim();
 
         _config.Save();
         if (_config.Autostart) Autostart.Enable(); else Autostart.Disable();
@@ -843,6 +856,7 @@ public class SettingsWindow : Form
         _mqttUserBox.Text = _config.MqttUsername;
         _mqttPassBox.Text = _config.MqttPassword;
         _mqttSslCheck.Checked = _config.MqttUseSsl;
+        _mqttFallbackBox.Text = _config.MqttBrokerFallback ?? "";
         UpdateMqttStatusLabel();
     }
 
@@ -875,8 +889,9 @@ public class SettingsWindow : Form
 
         try
         {
+            var fallbackHost = _mqttFallbackBox.Text.Trim();
             var result = await System.Threading.Tasks.Task.Run(() =>
-                MqttSetupHelper.AutoConfigureAsync(_config.HaUrl, _config.HaToken));
+                MqttSetupHelper.AutoConfigureAsync(_config.HaUrl, _config.HaToken, string.IsNullOrEmpty(fallbackHost) ? null : fallbackHost));
 
             if (result.Success)
             {
@@ -923,6 +938,55 @@ public class SettingsWindow : Form
         {
             btn.Enabled = true;
             btn.Text = "🔧 " + Localization.Get("mqtt_auto_configure");
+        }
+    }
+
+    private async void OnMqttTestConnection(object? sender, EventArgs e)
+    {
+        var broker = _mqttBrokerBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(broker))
+        {
+            MessageBox.Show("Bitte MQTT-Broker-Adresse eingeben.", "Eingabe fehlt", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!int.TryParse(_mqttPortBox.Text.Trim(), out var port) || port < 1 || port > 65535)
+        {
+            MessageBox.Show("Bitte einen gültigen Port eingeben (1-65535).", "Ungültiger Port", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var btn = (Button)sender!;
+        btn.Enabled = false;
+        btn.Text = "Teste...";
+        _mqttStatusLabel.Text = "⏳ Teste Verbindung...";
+        _mqttStatusLabel.ForeColor = Color.Gray;
+
+        try
+        {
+            var result = await System.Threading.Tasks.Task.Run(() =>
+                MqttSetupHelper.TestConnectionAsync(broker, port, _mqttUserBox.Text.Trim(), _mqttPassBox.Text, _mqttSslCheck.Checked));
+
+            if (result)
+            {
+                _mqttStatusLabel.Text = $"✓ Verbindung erfolgreich! ({broker}:{port})";
+                _mqttStatusLabel.ForeColor = SuccessGreen;
+            }
+            else
+            {
+                _mqttStatusLabel.Text = $"✗ Verbindung fehlgeschlagen ({broker}:{port})";
+                _mqttStatusLabel.ForeColor = DangerRed;
+            }
+        }
+        catch (Exception ex)
+        {
+            _mqttStatusLabel.Text = $"✗ Fehler: {ex.Message}";
+            _mqttStatusLabel.ForeColor = DangerRed;
+        }
+        finally
+        {
+            btn.Enabled = true;
+            btn.Text = "🔌 Verbindung testen";
         }
     }
 
