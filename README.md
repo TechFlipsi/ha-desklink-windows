@@ -293,10 +293,10 @@ Es gibt jetzt eine macOS-Version von HA DeskLink! 🎉 Siehe [ha-desklink-mac](h
 
 ### Verwendete KI-Modelle
 
-| Modell | Rolle | Aufgaben |
-|---|---|---|
-| **GLM-5.1** | Hauptmodell | Architektur, Code, Debugging |
-| **MiniMax M3** | Sub-Agenten | Tests, Audits |
+| Modell | Rolle |
+|---|---|
+| **GLM-5.1** | Hauptmodell |
+| **DeepSeek V4 Pro** | Sub-Agenten |
 
 ### Erstellung
-Dieses Projekt wurde unter Verwendung von KI-Unterstützung erstellt. Der gesamte Code wurde von **GLM-5.1** (J.A.R.V.I.S. – Hermes Agent) geschrieben und entwickelt – von der Architektur über die Implementierung bis zum Debugging. Für Tests und Audits wurden Sub-Agenten auf Basis von **MiniMax M3** eingesetzt. Die englische Dokumentation wurde ebenfalls von der KI aus dem Deutschen ins Englische übersetzt. Die deutsche Dokumentation ist die Originalversion.
+Dieses Projekt wurde unter Verwendung von KI-Unterstützung erstellt. Der gesamte Code wurde von **GLM-5.1** (J.A.R.V.I.S. – Hermes Agent) geschrieben und entwickelt – von der Architektur über die Implementierung bis zum Debugging. Für Tests und Audits wurden Sub-Agenten auf Basis von **DeepSeek V4 Pro** eingesetzt. Die englische Dokumentation wurde ebenfalls von der KI aus dem Deutschen ins Englische übersetzt. Die deutsche Dokumentation ist die Originalversion.
