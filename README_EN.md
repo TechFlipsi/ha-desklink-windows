@@ -244,5 +244,17 @@ There is now a macOS version of HA DeskLink! 🎉 See [ha-desklink-mac](https://
 ## Community
 💬 [Discord](https://discord.gg/7G2SqpXpsC) – Questions, Feedback, Help
 
-## Attribution
-This project was created with AI assistance. All code was written and developed by **GLM-5.1** (via OpenClaw) – from architecture to implementation to debugging. This English documentation was also translated from German by AI. The German documentation is the original version.
+## Credits
+
+- **Idea:** Fabian Kirchweger
+- **Development:** J.A.R.V.I.S. (Hermes Agent)
+
+### AI Models Used
+
+| Model | Role | Tasks |
+|---|---|---|
+| **GLM-5.1** | Main model | Architecture, code, debugging |
+| **MiniMax M3** | Sub-agents | Tests, audits |
+
+### Attribution
+This project was created with AI assistance. All code was written and developed by **GLM-5.1** (J.A.R.V.I.S. – Hermes Agent) – from architecture to implementation to debugging. Sub-agents powered by **MiniMax M3** were used for tests and audits. This English documentation was also translated from German by AI. The German documentation is the original version.
