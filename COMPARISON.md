@@ -138,4 +138,4 @@ HASS.Agent is a great project – but it requires **MQTT** and a **separate inte
 
 ---
 
-**Idee / Idea:** Fabian Kirchweger | **Code:** GLM-5.1 (via OpenClaw) | **Lizenz / License:** GPL v3
+**Idee / Idea:** Fabian Kirchweger | **Code:** J.A.R.V.I.S. (Hermes Agent) | **Lizenz / License:** GPL v3
