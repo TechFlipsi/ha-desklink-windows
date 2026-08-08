@@ -63,7 +63,6 @@ public class SettingsWindow : Form
     private Label _mqttStatusLabel = null!;
 
     // ═══ Layout-Panels für Navigation und Theme ═══
-    private SplitContainer _splitContainer = null!;
     private Panel _sidebarPanel = null!;
     private Panel _contentPanel = null!;
     private Panel _bottomPanel = null!;
@@ -109,28 +108,18 @@ public class SettingsWindow : Form
     }
 
     // ═══════════════════════════════════════════════════════
-    // INITIALISIERUNG — SplitContainer mit Sidebar + Inhaltsbereich
+    // INITIALISIERUNG — Sidebar (Dock=Left) + Inhaltsbereich (Dock=Fill)
     // ═══════════════════════════════════════════════════════
 
     private void InitializeComponents()
     {
-        // SplitContainer als Hauptlayout: Sidebar links (200px), Inhaltsbereich rechts (Fill)
-        _splitContainer = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            FixedPanel = FixedPanel.Panel1,
-            SplitterWidth = 1,
-            BorderStyle = BorderStyle.None,
-            Panel1MinSize = 180,
-            Panel2MinSize = 300,
-        };
-
-        // Sidebar (Panel1, links, 200px breit)
+        // Sidebar (Panel1, links, 200px breit) — Dock=Left, NICHT SplitContainer
+        // SplitContainer crasht weil SplitterDistance-Validierung zur Laufzeit fehlschlägt
         BuildSidebar();
-        _splitContainer.Panel1.Controls.Add(_sidebarPanel);
+        _sidebarPanel.Dock = DockStyle.Left;
+        _sidebarPanel.Width = 200;
 
-        // Inhaltsbereich (Panel2, rechts, füllt restlichen Platz)
+        // Inhaltsbereich (rechts, füllt restlichen Platz)
         _contentPanel = new Panel
         {
             Dock = DockStyle.Fill,
@@ -153,15 +142,10 @@ public class SettingsWindow : Form
             _contentPanel.Controls.Add(section);
         }
 
-        _splitContainer.Panel2.Controls.Add(_contentPanel);
-
-        // SplitContainer zum Form hinzufügen (vor Bottom Bar, damit Dock=Fill den Rest füllt)
-        Controls.Add(_splitContainer);
-
-        // SplitterDistance NACH dem Hinzufügen zum Form setzen — sonst hat der Container
-        // noch keine Width und SplitterDistance=200 crasht (muß zwischen Panel1MinSize und Width-Panel2MinSize liegen)
-        _splitContainer.SplitterDistance = Math.Max(_splitContainer.Panel1MinSize,
-            Math.Min(200, _splitContainer.Width - _splitContainer.Panel2MinSize));
+        // Reihenfolge WICHTIG: ContentPanel zuerst (Dock=Fill), dann Sidebar (Dock=Left)
+        // WinForms dockt in umgekehrter Reihenfolge — Fill muss zuerst hinzugefügt werden
+        Controls.Add(_contentPanel);
+        Controls.Add(_sidebarPanel);
 
         // Bottom Bar — Save, Reconnect, Status (immer sichtbar unten)
         BuildBottomBar();
@@ -1392,7 +1376,6 @@ public class SettingsWindow : Form
         Color inputBg = _isDark ? DarkInput : LightInput;
         Color sidebarBg = _isDark ? DarkBg : LightSidebarBg;
         Color bottomBg = _isDark ? DarkSectionBg : LightBottomBg;
-        Color splitterColor = _isDark ? Color.FromArgb(60, 60, 60) : Color.FromArgb(200, 200, 200);
 
         // Sidebar Hover/Normal Farben für MouseEnter/Leave
         _sidebarNormalBg = sidebarBg;
@@ -1401,9 +1384,6 @@ public class SettingsWindow : Form
         // Form
         BackColor = bg;
         ForeColor = fg;
-
-        // SplitContainer (Splitter-Farbe)
-        _splitContainer.BackColor = splitterColor;
 
         // Sidebar
         _sidebarPanel.BackColor = sidebarBg;
@@ -1449,11 +1429,7 @@ public class SettingsWindow : Form
             if (c == _sidebarPanel || c == _bottomPanel || c == _contentPanel)
                 continue;
 
-            if (c is SplitContainer)
-            {
-                c.BackColor = splitterColor;
-            }
-            else if (c is TextBox || c is ComboBox || c is NumericUpDown || c is ListBox)
+            if (c is TextBox || c is ComboBox || c is NumericUpDown || c is ListBox)
             {
                 c.BackColor = inputBg;
                 c.ForeColor = fg;
