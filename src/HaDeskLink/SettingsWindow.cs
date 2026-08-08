@@ -16,30 +16,43 @@ namespace HaDeskLink;
 
 public class SettingsWindow : Form
 {
+    // ═══ Config und API ═══
     private readonly Config _config;
     private readonly Action _onReconnect;
     private readonly HaApiClient? _api;
+
+    // ═══ Steuerlemente — Verbindung ═══
     private TextBox _urlBox = null!;
     private TextBox _tokenBox = null!;
     private CheckBox _sslCheck = null!;
+
+    // ═══ Steuerlemente — Allgemein ═══
     private CheckBox _autostartCheck = null!;
     private NumericUpDown _intervalBox = null!;
     private ComboBox _updateChannelBox = null!;
+
+    // ═══ Steuerlemente — Erscheinungsbild ═══
     private ComboBox _languageBox = null!;
     private ComboBox _themeBox = null!;
+
+    // ═══ Steuerlemente — Benachrichtigungen ═══
     private ComboBox _notifPosBox = null!;
     private ComboBox _notifMonitorBox = null!;
+
+    // ═══ Steuerlemente — Tastenkombinationen ═══
     private ComboBox _hotkeyModBox = null!;
     private ComboBox _hotkeyKeyBox = null!;
     private ComboBox _hotkeyDashModBox = null!;
     private ComboBox _hotkeyDashKeyBox = null!;
     private ComboBox _hotkeySettingsModBox = null!;
     private ComboBox _hotkeySettingsKeyBox = null!;
+
+    // ═══ Steuerlemente — Status und Quick Actions ═══
     private Label _statusLabel = null!;
     private ListBox _qaList = null!;
     private List<(string entityId, string friendlyName)> _entities = new();
 
-    // MQTT-Steuerlemente
+    // ═══ MQTT-Steuerlemente ═══
     private CheckBox _mqttEnabledCheck = null!;
     private TextBox _mqttBrokerBox = null!;
     private TextBox _mqttPortBox = null!;
@@ -49,10 +62,19 @@ public class SettingsWindow : Form
     private TextBox _mqttFallbackBox = null!;
     private Label _mqttStatusLabel = null!;
 
-    // Layout-Panel — wird für ApplyTheme benötigt, damit Section-Cards neu eingefärbt werden können
-    private FlowLayoutPanel _contentFlow = null!;
+    // ═══ Layout-Panels für Navigation und Theme ═══
+    private SplitContainer _splitContainer = null!;
+    private Panel _sidebarPanel = null!;
+    private Panel _contentPanel = null!;
+    private Panel _bottomPanel = null!;
+    private readonly List<Button> _sidebarButtons = new();
+    private readonly List<Panel> _sectionPanels = new();
+    private int _currentSection = 0;
+    private bool _isDark = true;
+    private Color _sidebarNormalBg;
+    private Color _sidebarHoverBg;
 
-    // Dark Theme Farben
+    // ═══ Dark Theme Farben ═══
     private static readonly Color DarkBg = Color.FromArgb(32, 32, 32);
     private static readonly Color DarkFg = Color.FromArgb(230, 230, 230);
     private static readonly Color DarkInput = Color.FromArgb(48, 48, 48);
@@ -62,108 +84,223 @@ public class SettingsWindow : Form
     private static readonly Color WarningOrange = Color.FromArgb(180, 80, 0);
     private static readonly Color DangerRed = Color.FromArgb(200, 50, 50);
 
+    // ═══ Light Theme Farben ═══
+    private static readonly Color LightBg = Color.White;
+    private static readonly Color LightFg = Color.FromArgb(32, 32, 32);
+    private static readonly Color LightInput = Color.FromArgb(248, 248, 248);
+    private static readonly Color LightSidebarBg = Color.FromArgb(240, 240, 240);
+    private static readonly Color LightBottomBg = Color.FromArgb(248, 248, 248);
+
     public SettingsWindow(Config config, Action onReconnect, HaApiClient? api = null)
     {
         _config = config;
         _onReconnect = onReconnect;
         _api = api;
         Text = $"HA DeskLink - {Localization.Get("settings_title")}";
-        Size = new Size(640, 1000);
-        MinimumSize = new Size(520, 700);
+        Size = new Size(800, 600);
+        MinimumSize = new Size(600, 400);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.Sizable;
         InitializeComponents();
         LoadSettings();
         LoadQuickActionsList();
         ApplyTheme(_config.Theme);
+        ShowSection(0);
     }
 
     // ═══════════════════════════════════════════════════════
-    // INITIALISIERUNG — Layout mit Bottom-Bar und scrollbarem Content
+    // INITIALISIERUNG — SplitContainer mit Sidebar + Inhaltsbereich
     // ═══════════════════════════════════════════════════════
 
     private void InitializeComponents()
     {
-        // Scroll-Bereich für den gesamten Content
-        var mainPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(24, 24, 24, 8) };
-
-        // FlowLayoutPanel für die Sections (von oben nach unten gestapelt)
-        _contentFlow = new FlowLayoutPanel
+        // SplitContainer als Hauptlayout: Sidebar links (200px), Inhaltsbereich rechts (Fill)
+        _splitContainer = new SplitContainer
         {
-            Dock = DockStyle.Top,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoSize = true,
-            AutoScroll = false,
-            Width = mainPanel.Width - 60,
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Vertical,
+            FixedPanel = FixedPanel.Panel1,
+            SplitterDistance = 200,
+            SplitterWidth = 1,
+            BorderStyle = BorderStyle.None,
+            Panel1MinSize = 180,
+            Panel2MinSize = 300,
         };
-        mainPanel.Resize += (s, e) => { _contentFlow.Width = mainPanel.Width - 60; };
 
-        // ═══════════════════════════════════════════
-        // 1. 🔌 VERBINDUNG
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildConnectionSection());
+        // Sidebar (Panel1, links, 200px breit)
+        BuildSidebar();
+        _splitContainer.Panel1.Controls.Add(_sidebarPanel);
 
-        // ═══════════════════════════════════════════
-        // 2. ⚙️ ALLGEMEIN (Autostart, Sensor-Intervall, Update-Kanal + Reset/Reregister)
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildGeneralSection());
+        // Inhaltsbereich (Panel2, rechts, füllt restlichen Platz)
+        _contentPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(0),
+        };
 
-        // ═══════════════════════════════════════════
-        // 3. 🎨 ERSCHEINUNGSBILD (Sprache, Theme)
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildAppearanceSection());
+        // Sections erstellen — jede ist ein Panel mit Dock=Fill und AutoScroll
+        _sectionPanels.Add(BuildConnectionSection());
+        _sectionPanels.Add(BuildGeneralSection());
+        _sectionPanels.Add(BuildAppearanceSection());
+        _sectionPanels.Add(BuildNotificationsSection());
+        _sectionPanels.Add(BuildHotkeysSection());
+        _sectionPanels.Add(BuildMqttSection());
+        _sectionPanels.Add(BuildQuickActionsSection());
 
-        // ═══════════════════════════════════════════
-        // 4. 🔔 BENACHRICHTIGUNGEN (Position, Monitor)
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildNotificationsSection());
+        // Sections zum Inhaltsbereich hinzufügen (alle unsichtbar, ShowSection() blendet eine ein)
+        foreach (var section in _sectionPanels)
+        {
+            section.Visible = false;
+            _contentPanel.Controls.Add(section);
+        }
 
-        // ═══════════════════════════════════════════
-        // 5. ⌨️ TASTENKOMBINATIONEN (3 Hotkey Rows)
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildHotkeysSection());
+        _splitContainer.Panel2.Controls.Add(_contentPanel);
 
-        // ═══════════════════════════════════════════
-        // 6. 📡 MQTT-EINSTELLUNGEN
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildMqttSection());
+        // SplitContainer zum Form hinzufügen (vor Bottom Bar, damit Dock=Fill den Rest füllt)
+        Controls.Add(_splitContainer);
 
-        // ═══════════════════════════════════════════
-        // 7. ⚡ QUICK ACTIONS
-        // ═══════════════════════════════════════════
-        _contentFlow.Controls.Add(BuildQuickActionsSection());
-
-        mainPanel.Controls.Add(_contentFlow);
-        Controls.Add(mainPanel);
-
-        // ═══════════════════════════════════════════
-        // 8. BOTTOM BAR — Save, Reconnect, Status (immer sichtbar)
-        // ═══════════════════════════════════════════
+        // Bottom Bar — Save, Reconnect, Status (immer sichtbar unten)
         BuildBottomBar();
     }
 
     // ═══════════════════════════════════════════════════════
-    // SECTION-BUILDER — Jede Section ist ein Card-artiges Panel
+    // SIDEBAR — Navigation mit 7 Items
     // ═══════════════════════════════════════════════════════
 
-    // ─── Helper: Card-Panel erstellen (Hintergrund, Padding, Border) ───
-    private Panel MakeCardPanel()
+    private void BuildSidebar()
+    {
+        _sidebarPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = DarkBg,
+        };
+
+        // Sidebar-Header (Branding)
+        var sidebarHeader = new Label
+        {
+            Text = "HA DeskLink",
+            Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+            ForeColor = DarkFg,
+            Dock = DockStyle.Top,
+            Height = 48,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(16, 0, 16, 8),
+        };
+
+        // Navigation-Items definieren
+        var navItems = new[]
+        {
+            (0, "🔌 " + Localization.Get("settings_connection", "Verbindung")),
+            (1, "⚙️ " + Localization.Get("settings_general", "Allgemein")),
+            (2, "🎨 " + Localization.Get("settings_appearance", "Erscheinungsbild")),
+            (3, "🔔 " + Localization.Get("settings_notifications", "Benachrichtigungen")),
+            (4, "⌨️ " + Localization.Get("settings_hotkeys", "Tastenkombinationen")),
+            (5, "📡 " + Localization.Get("mqtt_settings")),
+            (6, "⚡ " + Localization.Get("settings_quickactions")),
+        };
+
+        // Buttons erstellen (in korrekter Reihenfolge für _sidebarButtons Liste)
+        for (int i = 0; i < navItems.Length; i++)
+        {
+            var btn = MakeSidebarButton(navItems[i].Item2, navItems[i].Item1);
+            _sidebarButtons.Add(btn);
+        }
+
+        // Buttons in umgekehrter Reihenfolge zum Panel hinzufügen
+        // (Dock=Top: zuletzt hinzugefügter Control erscheint ganz oben)
+        for (int i = _sidebarButtons.Count - 1; i >= 0; i--)
+        {
+            _sidebarPanel.Controls.Add(_sidebarButtons[i]);
+        }
+
+        // Header zuletzt hinzufügen (erscheint ganz oben in der Sidebar)
+        _sidebarPanel.Controls.Add(sidebarHeader);
+    }
+
+    private Button MakeSidebarButton(string text, int index)
+    {
+        var btn = new Button
+        {
+            Text = "  " + text,
+            Dock = DockStyle.Top,
+            Height = 40,
+            FlatStyle = FlatStyle.Flat,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font("Segoe UI", 10f),
+            ForeColor = DarkFg,
+            BackColor = DarkBg,
+            Cursor = Cursors.Hand,
+            Tag = index,
+            Padding = new Padding(16, 0, 0, 0),
+            Margin = new Padding(0),
+        };
+        btn.FlatAppearance.BorderSize = 0;
+        btn.Click += (s, e) => ShowSection(index);
+        // Hover-Effekt: leicht hellerer Hintergrund (nur bei nicht ausgewähltem Item)
+        btn.MouseEnter += (s, e) =>
+        {
+            if (index != _currentSection)
+                btn.BackColor = _sidebarHoverBg;
+        };
+        btn.MouseLeave += (s, e) =>
+        {
+            if (index != _currentSection)
+                btn.BackColor = _sidebarNormalBg;
+        };
+        return btn;
+    }
+
+    private void ShowSection(int index)
+    {
+        // Alle Sections ausblenden und Scroll-Position zurücksetzen
+        foreach (var section in _sectionPanels)
+        {
+            section.Visible = false;
+            section.AutoScrollPosition = new Point(0, 0);
+        }
+
+        // Ausgewählte Section anzeigen und nach vorne bringen
+        if (index >= 0 && index < _sectionPanels.Count)
+        {
+            _sectionPanels[index].Visible = true;
+            _sectionPanels[index].BringToFront();
+        }
+
+        // Sidebar-Buttons aktualisieren (ausgewählter = AccentBlue, weiße Schrift)
+        for (int i = 0; i < _sidebarButtons.Count; i++)
+        {
+            if (i == index)
+            {
+                _sidebarButtons[i].BackColor = AccentBlue;
+                _sidebarButtons[i].ForeColor = Color.White;
+            }
+            else
+            {
+                _sidebarButtons[i].BackColor = _sidebarNormalBg;
+                _sidebarButtons[i].ForeColor = _isDark ? DarkFg : LightFg;
+            }
+        }
+
+        _currentSection = index;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SECTION-BUILDER — Jede Section ist ein Panel mit Dock=Fill und AutoScroll
+    // ═══════════════════════════════════════════════════════
+
+    // ─── Helper: Section-Panel (Dock=Fill, AutoScroll, 16px Padding) ───
+    private static Panel MakeSectionPanel()
     {
         return new Panel
         {
-            Dock = DockStyle.Top,
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
             Padding = new Padding(16),
-            Margin = new Padding(0, 0, 0, 16),  // 16px Abstand zwischen Sections
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = DarkSectionBg,
-            BorderStyle = BorderStyle.FixedSingle,
         };
     }
 
-    // ─── Helper: TableLayoutPanel für 2-Spalten Layout ───
-    private TableLayoutPanel MakeFieldTable(int rowCount)
+    // ─── Helper: TableLayoutPanel für 2-Spalten Layout (Label 200px + Input Percent 100%) ───
+    private static TableLayoutPanel MakeFieldTable(int rowCount)
     {
         var t = new TableLayoutPanel
         {
@@ -175,7 +312,8 @@ public class SettingsWindow : Form
             Padding = new Padding(0),
             Margin = new Padding(0, 8, 0, 0),
         };
-        t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+        // 200px Label-Spalte — breit genug für deutsche Langwörter ohne Wortumbruch
+        t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
         t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         return t;
     }
@@ -183,37 +321,77 @@ public class SettingsWindow : Form
     // ─── Section 1: 🔌 Verbindung ───
     private Panel BuildConnectionSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("🔌 " + Localization.Get("settings_connection", "Verbindung")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("🔌 " + Localization.Get("settings_connection", "Verbindung"));
 
-        var table = MakeFieldTable(3);
+        // 6 Zeilen: URL | URL-Beschreibung | Token | Token-Beschreibung | SSL | SSL-Beschreibung
+        var table = MakeFieldTable(6);
 
+        // HA URL (TextBox, volle Breite)
         _urlBox = new TextBox { Dock = DockStyle.Fill, Text = "https://homeassistant.local:8123", Height = 28 };
         AddTooltip(_urlBox, Localization.Get("tooltip_ha_url"));
         table.Controls.Add(MakeLabel(Localization.Get("settings_ha_url")), 0, 0);
         table.Controls.Add(_urlBox, 1, 0);
 
+        // Beschreibung: HA URL
+        var urlDesc = MakeDescriptionLabel(Localization.Get("desc_ha_url"));
+        table.Controls.Add(urlDesc, 0, 1);
+        table.SetColumnSpan(urlDesc, 2);
+
+        // Long-Lived Token (TextBox, password, volle Breite)
         _tokenBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true, Height = 28 };
         AddTooltip(_tokenBox, Localization.Get("tooltip_token"));
-        table.Controls.Add(MakeLabel(Localization.Get("settings_token")), 0, 1);
-        table.Controls.Add(_tokenBox, 1, 1);
+        table.Controls.Add(MakeLabel(Localization.Get("settings_token")), 0, 2);
+        table.Controls.Add(_tokenBox, 1, 2);
 
+        // Beschreibung: Token
+        var tokenDesc = MakeDescriptionLabel(Localization.Get("desc_token"));
+        table.Controls.Add(tokenDesc, 0, 3);
+        table.SetColumnSpan(tokenDesc, 2);
+
+        // SSL-Zertifikat prüfen (CheckBox, volle Breite)
         _sslCheck = new CheckBox { Text = Localization.Get("settings_verify_ssl"), AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
         AddTooltip(_sslCheck, Localization.Get("tooltip_ssl"));
-        table.Controls.Add(_sslCheck, 0, 2);
+        table.Controls.Add(_sslCheck, 0, 4);
         table.SetColumnSpan(_sslCheck, 2);
 
-        card.Controls.Add(table);
-        return card;
+        // Beschreibung: SSL
+        var sslDesc = MakeDescriptionLabel(Localization.Get("desc_ssl"));
+        table.Controls.Add(sslDesc, 0, 5);
+        table.SetColumnSpan(sslDesc, 2);
+
+        // Neu verbinden Button (separate Zeile unter der Tabelle)
+        var actionPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(0),
+            Margin = new Padding(0, 12, 0, 0),
+        };
+        var reconnectBtn = MakeButton("🔄 " + Localization.Get("settings_reconnect", "Neu verbinden"), Color.FromArgb(0, 100, 180), OnReconnectClicked);
+        AddTooltip(reconnectBtn, Localization.Get("tooltip_reconnect"));
+        actionPanel.Controls.Add(reconnectBtn);
+
+        // In umgekehrter Reihenfolge hinzufügen (Dock=Top: zuletzt hinzugefügter oben)
+        section.Controls.Add(actionPanel);
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 2: ⚙️ Allgemein (Autostart, Sensor-Intervall, Update-Kanal, Reset/Reregister) ───
     private Panel BuildGeneralSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("⚙️ " + Localization.Get("settings_general", "Allgemein")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("⚙️ " + Localization.Get("settings_general", "Allgemein"));
 
-        var table = MakeFieldTable(5);
+        // 9 Zeilen: Autostart | Autostart-Beschreibung | Sensor-Intervall | Hint |
+        //           Sensor-Beschreibung | Update-Kanal | Update-Kanal-Beschreibung |
+        //           Reset-Beschreibung | Reregister-Beschreibung
+        var table = MakeFieldTable(9);
 
         // Autostart
         _autostartCheck = new CheckBox { Text = Localization.Get("settings_autostart"), AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
@@ -221,8 +399,13 @@ public class SettingsWindow : Form
         table.Controls.Add(_autostartCheck, 0, 0);
         table.SetColumnSpan(_autostartCheck, 2);
 
+        // Beschreibung: Autostart
+        var autostartDesc = MakeDescriptionLabel(Localization.Get("desc_autostart"));
+        table.Controls.Add(autostartDesc, 0, 1);
+        table.SetColumnSpan(autostartDesc, 2);
+
         // Sensor-Intervall
-        table.Controls.Add(MakeLabel(Localization.Get("settings_sensor_interval")), 0, 1);
+        table.Controls.Add(MakeLabel(Localization.Get("settings_sensor_interval")), 0, 2);
         _intervalBox = new NumericUpDown { Minimum = 10, Maximum = 300, Value = 30, Dock = DockStyle.Fill, Height = 28 };
         AddTooltip(_intervalBox, Localization.Get("tooltip_sensor_interval"));
         var intervalHint = new Label
@@ -233,20 +416,38 @@ public class SettingsWindow : Form
             Font = new Font("Segoe UI", 8f),
             Margin = new Padding(0, 2, 0, 0),
         };
-        table.Controls.Add(_intervalBox, 1, 1);
-        table.Controls.Add(intervalHint, 0, 2);
+        table.Controls.Add(_intervalBox, 1, 2);
+        table.Controls.Add(intervalHint, 0, 3);
         table.SetColumnSpan(intervalHint, 2);
 
+        // Beschreibung: Sensor-Intervall (detaillierter als der Hint)
+        var intervalDesc = MakeDescriptionLabel(Localization.Get("desc_sensor_interval"));
+        table.Controls.Add(intervalDesc, 0, 4);
+        table.SetColumnSpan(intervalDesc, 2);
+
         // Update-Kanal
-        table.Controls.Add(MakeLabel(Localization.Get("settings_update_channel")), 0, 3);
+        table.Controls.Add(MakeLabel(Localization.Get("settings_update_channel")), 0, 5);
         _updateChannelBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Height = 28 };
         AddTooltip(_updateChannelBox, Localization.Get("tooltip_update_channel"));
         _updateChannelBox.Items.AddRange(new object[] { Localization.Get("settings_channel_stable"), Localization.Get("settings_channel_prerelease") });
-        table.Controls.Add(_updateChannelBox, 1, 3);
+        table.Controls.Add(_updateChannelBox, 1, 5);
 
-        card.Controls.Add(table);
+        // Beschreibung: Update-Kanal
+        var updateChannelDesc = MakeDescriptionLabel(Localization.Get("desc_update_channel"));
+        table.Controls.Add(updateChannelDesc, 0, 6);
+        table.SetColumnSpan(updateChannelDesc, 2);
 
-        // Reset Device ID und Re-register Sensors in der Allgemein-Section
+        // Beschreibung: Reset Device ID (Erklärung vor den Buttons)
+        var resetDesc = MakeDescriptionLabel(Localization.Get("desc_reset_device"));
+        table.Controls.Add(resetDesc, 0, 7);
+        table.SetColumnSpan(resetDesc, 2);
+
+        // Beschreibung: Sensoren neu registrieren
+        var reregisterDesc = MakeDescriptionLabel(Localization.Get("desc_reregister"));
+        table.Controls.Add(reregisterDesc, 0, 8);
+        table.SetColumnSpan(reregisterDesc, 2);
+
+        // Reset Device ID und Re-register Sensors
         var actionPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -266,46 +467,65 @@ public class SettingsWindow : Form
 
         actionPanel.Controls.Add(resetBtn);
         actionPanel.Controls.Add(reregisterBtn);
-        card.Controls.Add(actionPanel);
 
-        return card;
+        // In umgekehrter Reihenfolge hinzufügen
+        section.Controls.Add(actionPanel);
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 3: 🎨 Erscheinungsbild (Sprache, Theme) ───
     private Panel BuildAppearanceSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("🎨 " + Localization.Get("settings_appearance", "Erscheinungsbild")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("🎨 " + Localization.Get("settings_appearance", "Erscheinungsbild"));
 
-        var table = MakeFieldTable(2);
+        // 4 Zeilen: Sprache | Sprache-Beschreibung | Design | Design-Beschreibung
+        var table = MakeFieldTable(4);
 
-        // Sprache
+        // Sprache (ComboBox, zeigt alle AvailableLanguages)
         table.Controls.Add(MakeLabel(Localization.Get("settings_language")), 0, 0);
         _languageBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Height = 28 };
         foreach (var lang in Localization.AvailableLanguages)
             _languageBox.Items.Add($"{Localization.GetLanguageName(lang)} ({lang})");
         table.Controls.Add(_languageBox, 1, 0);
 
-        // Theme
-        table.Controls.Add(MakeLabel(Localization.Get("settings_theme")), 0, 1);
+        // Beschreibung: Sprache
+        var langDesc = MakeDescriptionLabel(Localization.Get("desc_language"));
+        table.Controls.Add(langDesc, 0, 1);
+        table.SetColumnSpan(langDesc, 2);
+
+        // Design (ComboBox: System/Hell/Dunkel)
+        table.Controls.Add(MakeLabel(Localization.Get("settings_theme")), 0, 2);
         _themeBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Height = 28 };
         AddTooltip(_themeBox, Localization.Get("tooltip_theme"));
         _themeBox.Items.AddRange(new object[] { Localization.Get("settings_theme_system"), Localization.Get("settings_theme_light"), Localization.Get("settings_theme_dark") });
-        table.Controls.Add(_themeBox, 1, 1);
+        table.Controls.Add(_themeBox, 1, 2);
 
-        card.Controls.Add(table);
-        return card;
+        // Beschreibung: Design
+        var themeDesc = MakeDescriptionLabel(Localization.Get("desc_theme"));
+        table.Controls.Add(themeDesc, 0, 3);
+        table.SetColumnSpan(themeDesc, 2);
+
+        // In umgekehrter Reihenfolge hinzufügen
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 4: 🔔 Benachrichtigungen (Position, Monitor) ───
     private Panel BuildNotificationsSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("🔔 " + Localization.Get("settings_notifications", "Benachrichtigungen")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("🔔 " + Localization.Get("settings_notifications", "Benachrichtigungen"));
 
-        var table = MakeFieldTable(2);
+        // 4 Zeilen: Position | Position-Beschreibung | Monitor | Monitor-Beschreibung
+        var table = MakeFieldTable(4);
 
-        // Position
+        // Position (ComboBox: Unten Links, Unten Rechts, Oben Links, Oben Rechts)
         table.Controls.Add(MakeLabel(Localization.Get("settings_notif_position")), 0, 0);
         _notifPosBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Height = 28 };
         AddTooltip(_notifPosBox, Localization.Get("tooltip_notif_position"));
@@ -317,8 +537,13 @@ public class SettingsWindow : Form
         });
         table.Controls.Add(_notifPosBox, 1, 0);
 
-        // Monitor
-        table.Controls.Add(MakeLabel(Localization.Get("settings_notif_monitor")), 0, 1);
+        // Beschreibung: Position
+        var posDesc = MakeDescriptionLabel(Localization.Get("desc_notif_position"));
+        table.Controls.Add(posDesc, 0, 1);
+        table.SetColumnSpan(posDesc, 2);
+
+        // Monitor (ComboBox: alle Screens)
+        table.Controls.Add(MakeLabel(Localization.Get("settings_notif_monitor")), 0, 2);
         _notifMonitorBox = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Height = 28 };
         AddTooltip(_notifMonitorBox, Localization.Get("tooltip_notif_monitor"));
         for (int i = 0; i < Screen.AllScreens.Length; i++)
@@ -328,19 +553,28 @@ public class SettingsWindow : Form
                 : $"Monitor {i + 1} ({Screen.AllScreens[i].DeviceName?.Trim(':')})";
             _notifMonitorBox.Items.Add(label);
         }
-        table.Controls.Add(_notifMonitorBox, 1, 1);
+        table.Controls.Add(_notifMonitorBox, 1, 2);
 
-        card.Controls.Add(table);
-        return card;
+        // Beschreibung: Monitor
+        var monitorDesc = MakeDescriptionLabel(Localization.Get("desc_notif_monitor"));
+        table.Controls.Add(monitorDesc, 0, 3);
+        table.SetColumnSpan(monitorDesc, 2);
+
+        // In umgekehrter Reihenfolge hinzufügen
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 5: ⌨️ Tastenkombinationen (3 Hotkey Rows) ───
     private Panel BuildHotkeysSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("⌨️ " + Localization.Get("settings_hotkeys", "Tastenkombinationen")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("⌨️ " + Localization.Get("settings_hotkeys", "Tastenkombinationen"));
 
-        var table = MakeFieldTable(3);
+        // 6 Zeilen: QA-Hotkey | QA-Beschreibung | Dash-Hotkey | Dash-Beschreibung | Settings-Hotkey | Settings-Beschreibung
+        var table = MakeFieldTable(6);
 
         // Quick Actions Hotkey
         table.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_qa")), 0, 0);
@@ -348,29 +582,51 @@ public class SettingsWindow : Form
         AddTooltip(_hotkeyModBox, Localization.Get("tooltip_hotkey_qa"));
         table.Controls.Add(hotkeyPanel, 1, 0);
 
+        // Beschreibung: Quick Actions Hotkey
+        var qaHotkeyDesc = MakeDescriptionLabel(Localization.Get("desc_hotkey_qa"));
+        table.Controls.Add(qaHotkeyDesc, 0, 1);
+        table.SetColumnSpan(qaHotkeyDesc, 2);
+
         // Dashboard Hotkey
-        table.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_dashboard")), 0, 1);
+        table.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_dashboard")), 0, 2);
         var dashPanel = CreateHotkeyRow(out _hotkeyDashModBox, out _hotkeyDashKeyBox);
         AddTooltip(dashPanel, Localization.Get("tooltip_hotkey_dashboard"));
-        table.Controls.Add(dashPanel, 1, 1);
+        table.Controls.Add(dashPanel, 1, 2);
+
+        // Beschreibung: Dashboard Hotkey
+        var dashHotkeyDesc = MakeDescriptionLabel(Localization.Get("desc_hotkey_dashboard"));
+        table.Controls.Add(dashHotkeyDesc, 0, 3);
+        table.SetColumnSpan(dashHotkeyDesc, 2);
 
         // Settings Hotkey
-        table.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_settings")), 0, 2);
+        table.Controls.Add(MakeLabel(Localization.Get("settings_hotkey_settings")), 0, 4);
         var settingsPanel = CreateHotkeyRow(out _hotkeySettingsModBox, out _hotkeySettingsKeyBox);
         AddTooltip(settingsPanel, Localization.Get("tooltip_hotkey_settings"));
-        table.Controls.Add(settingsPanel, 1, 2);
+        table.Controls.Add(settingsPanel, 1, 4);
 
-        card.Controls.Add(table);
-        return card;
+        // Beschreibung: Settings Hotkey
+        var settingsHotkeyDesc = MakeDescriptionLabel(Localization.Get("desc_hotkey_settings"));
+        table.Controls.Add(settingsHotkeyDesc, 0, 5);
+        table.SetColumnSpan(settingsHotkeyDesc, 2);
+
+        // In umgekehrter Reihenfolge hinzufügen
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 6: 📡 MQTT ───
     private Panel BuildMqttSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("📡 " + Localization.Get("mqtt_settings")));
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("📡 " + Localization.Get("mqtt_settings"));
 
-        var table = MakeFieldTable(9);
+        // 16 Zeilen: Enable | Enable-Beschreibung | Broker | Broker-Beschreibung |
+        //            Port | Port-Beschreibung | User | User-Beschreibung |
+        //            Pass | Pass-Beschreibung | SSL | SSL-Beschreibung |
+        //            Fallback | Fallback-Beschreibung | Test | Status
+        var table = MakeFieldTable(16);
 
         // MQTT aktivieren
         _mqttEnabledCheck = new CheckBox { Text = Localization.Get("mqtt_enabled"), AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
@@ -378,47 +634,82 @@ public class SettingsWindow : Form
         table.Controls.Add(_mqttEnabledCheck, 0, 0);
         table.SetColumnSpan(_mqttEnabledCheck, 2);
 
+        // Beschreibung: MQTT aktivieren
+        var mqttEnableDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_enabled"));
+        table.Controls.Add(mqttEnableDesc, 0, 1);
+        table.SetColumnSpan(mqttEnableDesc, 2);
+
         // Broker
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_broker")), 0, 1);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_broker")), 0, 2);
         _mqttBrokerBox = new TextBox { Dock = DockStyle.Fill, Height = 28 };
         AddTooltip(_mqttBrokerBox, "MQTT-Broker Hostname (z.B. homeassistant.local)");
-        table.Controls.Add(_mqttBrokerBox, 1, 1);
+        table.Controls.Add(_mqttBrokerBox, 1, 2);
+
+        // Beschreibung: Broker
+        var brokerDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_broker"));
+        table.Controls.Add(brokerDesc, 0, 3);
+        table.SetColumnSpan(brokerDesc, 2);
 
         // Port
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_port")), 0, 2);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_port")), 0, 4);
         _mqttPortBox = new TextBox { Dock = DockStyle.Fill, Text = "1883", Height = 28 };
         AddTooltip(_mqttPortBox, "MQTT-Broker Port (Standard: 1883, SSL: 8883)");
-        table.Controls.Add(_mqttPortBox, 1, 2);
+        table.Controls.Add(_mqttPortBox, 1, 4);
+
+        // Beschreibung: Port
+        var portDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_port"));
+        table.Controls.Add(portDesc, 0, 5);
+        table.SetColumnSpan(portDesc, 2);
 
         // Username
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_username")), 0, 3);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_username")), 0, 6);
         _mqttUserBox = new TextBox { Dock = DockStyle.Fill, Height = 28 };
         AddTooltip(_mqttUserBox, "MQTT-Benutzername (optional, leer lassen bei anonymem Zugang)");
-        table.Controls.Add(_mqttUserBox, 1, 3);
+        table.Controls.Add(_mqttUserBox, 1, 6);
+
+        // Beschreibung: Username
+        var userDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_username"));
+        table.Controls.Add(userDesc, 0, 7);
+        table.SetColumnSpan(userDesc, 2);
 
         // Password
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_password")), 0, 4);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_password")), 0, 8);
         _mqttPassBox = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true, Height = 28 };
         AddTooltip(_mqttPassBox, "MQTT-Passwort (optional)");
-        table.Controls.Add(_mqttPassBox, 1, 4);
+        table.Controls.Add(_mqttPassBox, 1, 8);
+
+        // Beschreibung: Password
+        var passDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_password"));
+        table.Controls.Add(passDesc, 0, 9);
+        table.SetColumnSpan(passDesc, 2);
 
         // SSL
         _mqttSslCheck = new CheckBox { Text = Localization.Get("mqtt_use_ssl"), AutoSize = true, Margin = new Padding(0, 6, 0, 0) };
         AddTooltip(_mqttSslCheck, "SSL/TLS für MQTT-Verbindung aktivieren");
-        table.Controls.Add(_mqttSslCheck, 0, 5);
+        table.Controls.Add(_mqttSslCheck, 0, 10);
         table.SetColumnSpan(_mqttSslCheck, 2);
 
+        // Beschreibung: SSL
+        var mqttSslDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_ssl"));
+        table.Controls.Add(mqttSslDesc, 0, 11);
+        table.SetColumnSpan(mqttSslDesc, 2);
+
         // Fallback-Adresse
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_fallback_address", "Fallback-Adresse")), 0, 6);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_fallback_address", "Fallback-Adresse")), 0, 12);
         _mqttFallbackBox = new TextBox { Dock = DockStyle.Fill, Height = 28 };
         AddTooltip(_mqttFallbackBox, "Alternative MQTT-Broker-Adresse (z.B. lokale IP), falls die Hauptadresse nicht erreichbar ist. Leer lassen für keinen Fallback.");
-        table.Controls.Add(_mqttFallbackBox, 1, 6);
+        table.Controls.Add(_mqttFallbackBox, 1, 12);
+
+        // Beschreibung: Fallback
+        var fallbackDesc = MakeDescriptionLabel(Localization.Get("desc_mqtt_fallback"));
+        table.Controls.Add(fallbackDesc, 0, 13);
+        table.SetColumnSpan(fallbackDesc, 2);
 
         // Verbindung testen Button
-        table.Controls.Add(MakeLabel(Localization.Get("mqtt_test_connection", "Verbindung testen")), 0, 7);
+        table.Controls.Add(MakeLabel(Localization.Get("mqtt_test_connection", "Verbindung testen")), 0, 14);
         var mqttTestBtn = MakeButton("🔌 " + Localization.Get("mqtt_test_connection", "Verbindung testen"), SuccessGreen, OnMqttTestConnection);
         AddTooltip(mqttTestBtn, "Verbindung zum MQTT-Broker testen, bevor gespeichert wird");
-        table.Controls.Add(mqttTestBtn, 1, 7);
+        table.Controls.Add(mqttTestBtn, 1, 14);
 
         // Status Label
         _mqttStatusLabel = new Label
@@ -429,27 +720,35 @@ public class SettingsWindow : Form
             AutoSize = true,
             Margin = new Padding(0, 6, 0, 0),
         };
-        table.Controls.Add(_mqttStatusLabel, 0, 8);
+        table.Controls.Add(_mqttStatusLabel, 0, 15);
         table.SetColumnSpan(_mqttStatusLabel, 2);
 
-        card.Controls.Add(table);
         _mqttEnabledCheck.CheckedChanged += (s, e) => UpdateMqttStatusLabel();
 
-        return card;
+        // In umgekehrter Reihenfolge hinzufügen
+        section.Controls.Add(table);
+        section.Controls.Add(header);
+
+        return section;
     }
 
     // ─── Section 7: ⚡ Quick Actions ───
     private Panel BuildQuickActionsSection()
     {
-        var card = MakeCardPanel();
-        card.Controls.Add(MakeSectionHeader("⚡ " + Localization.Get("settings_quickactions")));
-        card.Controls.Add(new Label
+        var section = MakeSectionPanel();
+        var header = MakeSectionHeader("⚡ " + Localization.Get("settings_quickactions"));
+
+        // Detaillierte Beschreibung oben in der Section
+        var descLabel = new Label
         {
-            Text = Localization.Get("settings_quickactions_desc"),
+            Text = Localization.Get("desc_quickactions_intro"),
             AutoSize = true,
             ForeColor = Color.Gray,
+            Font = new Font("Segoe UI", 8f),
             Margin = new Padding(0, 4, 0, 8),
-        });
+            Dock = DockStyle.Top,
+            Tag = "desc",
+        };
 
         // Load Entities Button
         var qaLoadPanel = new FlowLayoutPanel
@@ -458,22 +757,25 @@ public class SettingsWindow : Form
             FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Margin = new Padding(0, 0, 0, 8),
+            Margin = new Padding(0, 0, 0, 4),
         };
         var loadBtn = MakeButton("📥 " + Localization.Get("settings_load_entities", "Entities laden"), SuccessGreen, OnLoadEntities);
         AddTooltip(loadBtn, Localization.Get("tooltip_load_entities"));
         qaLoadPanel.Controls.Add(loadBtn);
-        card.Controls.Add(qaLoadPanel);
 
-        // Entity ListBox
+        // Beschreibung: Load Entities
+        var loadEntitiesDesc = MakeDescriptionLabel(Localization.Get("desc_load_entities"));
+        loadEntitiesDesc.Dock = DockStyle.Top;
+        loadEntitiesDesc.Margin = new Padding(0, 0, 0, 8);
+
+        // Entity ListBox (volle Breite)
         _qaList = new ListBox
         {
             Dock = DockStyle.Top,
-            Height = 180,
+            Height = 250,
             MinimumSize = new Size(0, 120),
             Margin = new Padding(0, 0, 0, 8),
         };
-        card.Controls.Add(_qaList);
 
         // Add / Edit / Remove Buttons
         var qaEditPanel = new FlowLayoutPanel
@@ -497,59 +799,80 @@ public class SettingsWindow : Form
         qaEditPanel.Controls.Add(addBtn);
         qaEditPanel.Controls.Add(editBtn);
         qaEditPanel.Controls.Add(removeBtn);
-        card.Controls.Add(qaEditPanel);
 
-        return card;
+        // In umgekehrter Reihenfolge hinzufügen (Dock=Top: zuletzt hinzugefügter oben)
+        section.Controls.Add(qaEditPanel);        // ganz unten
+        section.Controls.Add(_qaList);            // darüber
+        section.Controls.Add(loadEntitiesDesc);    // darüber (Beschreibung für Load Entities)
+        section.Controls.Add(qaLoadPanel);        // darüber (Load Entities Button)
+        section.Controls.Add(descLabel);          // darüber (Section-Beschreibung)
+        section.Controls.Add(header);              // ganz oben
+
+        return section;
     }
 
     // ═══════════════════════════════════════════════════════
-    // BOTTOM BAR — Save, Reconnect, Status (immer sichtbar)
+    // BOTTOM BAR — Save (rechts), Reconnect (links daneben), Status (links)
+    // 56px hoch, mit 1px Top-Border
     // ═══════════════════════════════════════════════════════
 
     private void BuildBottomBar()
     {
-        var bottomPanel = new Panel
+        _bottomPanel = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 64,
-            Padding = new Padding(24, 12, 24, 12),
-            BackColor = DarkSectionBg,
-        };
-
-        var buttonFlow = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Left,
-            FlowDirection = FlowDirection.LeftToRight,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Height = 56,
             Padding = new Padding(0),
-            Margin = new Padding(0),
-            WrapContents = false,
         };
 
-        var saveBtn = MakeButton("💾 " + Localization.Get("settings_save"), AccentBlue, OnSave);
-        AddTooltip(saveBtn, Localization.Get("tooltip_save"));
+        // TableLayoutPanel: Status (links, Percent 100%) | Reconnect | Save (rechts)
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(16, 0, 16, 0),
+            Margin = new Padding(0),
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));  // Status (füllt restlichen Platz)
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Reconnect
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // Save
 
-        var reconnectBtn = MakeButton("🔄 " + Localization.Get("settings_reconnect", "Neu verbinden"), Color.FromArgb(0, 100, 180), OnReconnectClicked);
-        AddTooltip(reconnectBtn, Localization.Get("tooltip_reconnect"));
-
-        buttonFlow.Controls.Add(saveBtn);
-        buttonFlow.Controls.Add(reconnectBtn);
-        bottomPanel.Controls.Add(buttonFlow);
-
-        // Status-Label rechtsbündig in der Bottom Bar
+        // Status Label (links)
         _statusLabel = new Label
         {
             Text = "",
             ForeColor = Color.Gray,
-            AutoSize = true,
-            Anchor = AnchorStyles.Right,
-            Margin = new Padding(8, 0, 0, 0),
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
             Font = new Font("Segoe UI", 9f),
+            Margin = new Padding(0, 0, 16, 0),
         };
-        bottomPanel.Controls.Add(_statusLabel);
 
-        Controls.Add(bottomPanel);
+        // Reconnect Button
+        var reconnectBtn = MakeButton("🔄 " + Localization.Get("settings_reconnect", "Neu verbinden"), Color.FromArgb(0, 100, 180), OnReconnectClicked);
+        AddTooltip(reconnectBtn, Localization.Get("tooltip_reconnect"));
+
+        // Save Button (AccentBlue im Dark Theme)
+        var saveBtn = MakeButton("💾 " + Localization.Get("settings_save"), AccentBlue, OnSave);
+        AddTooltip(saveBtn, Localization.Get("tooltip_save"));
+
+        layout.Controls.Add(_statusLabel, 0, 0);
+        layout.Controls.Add(reconnectBtn, 1, 0);
+        layout.Controls.Add(saveBtn, 2, 0);
+
+        _bottomPanel.Controls.Add(layout);
+
+        // 1px Top-Border via Paint (Farbe je nach Theme)
+        _bottomPanel.Paint += (s, e) =>
+        {
+            var borderColor = _isDark ? Color.FromArgb(60, 60, 60) : Color.FromArgb(200, 200, 200);
+            using var pen = new Pen(borderColor, 1);
+            e.Graphics.DrawLine(pen, 0, 0, _bottomPanel.Width, 0);
+        };
+
+        Controls.Add(_bottomPanel);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -589,16 +912,34 @@ public class SettingsWindow : Form
         };
     }
 
-    // ─── Helper: Label (rechtsbündig für linke Spalte) ───
+    // ─── Helper: Label (rechtsbündig für linke Spalte, max 192px Breite) ───
+    // 200px Spalte - 8px rechter Margin = 192px max Label-Breite
+    // Verhindert Wortumbruch bei deutschen Langwort-Begriffen
     private static Label MakeLabel(string text)
     {
         return new Label
         {
             Text = text,
             AutoSize = true,
+            MaximumSize = new Size(192, 0),
             TextAlign = ContentAlignment.MiddleRight,
             Margin = new Padding(0, 6, 8, 0),
-            Anchor = AnchorStyles.Right,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+        };
+    }
+
+    // ─── Helper: Beschreibungs-Label (klein, grau, unter Eingabefeldern) ───
+    // Theme-abhängige Farbe wird in ApplyTheme() gesetzt (Tag="desc")
+    private static Label MakeDescriptionLabel(string text)
+    {
+        return new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font("Segoe UI", 8f),
+            ForeColor = Color.Gray,  // wird in ApplyTheme theme-abhängig gesetzt
+            Tag = "desc",
+            Margin = new Padding(0, 2, 0, 6),
         };
     }
 
@@ -1041,32 +1382,81 @@ public class SettingsWindow : Form
 
     private void ApplyTheme(string theme)
     {
-        bool dark = theme == "dark" || (theme == "system" && IsSystemDark());
-        Color bg = dark ? DarkBg : SystemColors.Window;
-        Color fg = dark ? DarkFg : SystemColors.WindowText;
-        Color inputBg = dark ? DarkInput : SystemColors.Window;
-        Color sectionBg = dark ? DarkSectionBg : Color.White;
+        _isDark = theme == "dark" || (theme == "system" && IsSystemDark());
+        Color bg = _isDark ? DarkBg : LightBg;
+        Color fg = _isDark ? DarkFg : LightFg;
+        Color inputBg = _isDark ? DarkInput : LightInput;
+        Color sidebarBg = _isDark ? DarkBg : LightSidebarBg;
+        Color bottomBg = _isDark ? DarkSectionBg : LightBottomBg;
+        Color splitterColor = _isDark ? Color.FromArgb(60, 60, 60) : Color.FromArgb(200, 200, 200);
 
+        // Sidebar Hover/Normal Farben für MouseEnter/Leave
+        _sidebarNormalBg = sidebarBg;
+        _sidebarHoverBg = _isDark ? Color.FromArgb(48, 48, 48) : Color.FromArgb(220, 220, 220);
+
+        // Form
         BackColor = bg;
         ForeColor = fg;
 
+        // SplitContainer (Splitter-Farbe)
+        _splitContainer.BackColor = splitterColor;
+
+        // Sidebar
+        _sidebarPanel.BackColor = sidebarBg;
+        _sidebarPanel.ForeColor = fg;
+
+        // Inhaltsbereich
+        _contentPanel.BackColor = bg;
+        _contentPanel.ForeColor = fg;
+
+        // Section-Panels
+        foreach (var section in _sectionPanels)
+        {
+            section.BackColor = bg;
+            section.ForeColor = fg;
+        }
+
+        // Bottom Bar
+        _bottomPanel.BackColor = bottomBg;
+        _bottomPanel.ForeColor = fg;
+        _bottomPanel.Invalidate();  // Paint-Event neu auslösen für Top-Border
+
+        // Sidebar-Buttons aktualisieren (ausgewählter = AccentBlue, weiße Schrift)
+        for (int i = 0; i < _sidebarButtons.Count; i++)
+        {
+            if (i == _currentSection)
+            {
+                _sidebarButtons[i].BackColor = AccentBlue;
+                _sidebarButtons[i].ForeColor = Color.White;
+            }
+            else
+            {
+                _sidebarButtons[i].BackColor = sidebarBg;
+                _sidebarButtons[i].ForeColor = fg;
+            }
+        }
+
+        // Alle Controls durchlaufen und einfärben
         foreach (Control c in GetAllControls(this))
         {
-            // Section-Cards: eigenes Background-Color Handling
-            if (c is Panel panel && panel.BorderStyle == BorderStyle.FixedSingle)
-            {
-                panel.BackColor = sectionBg;
-                panel.ForeColor = fg;
+            // Section-Panels, Sidebar und Bottom-Bar bereits eingefärbt — überspringen
+            if (c is Panel p && _sectionPanels.Contains(p))
                 continue;
-            }
+            if (c == _sidebarPanel || c == _bottomPanel || c == _contentPanel)
+                continue;
 
-            if (c is TextBox || c is ComboBox || c is NumericUpDown || c is ListBox)
+            if (c is SplitContainer)
+            {
+                c.BackColor = splitterColor;
+            }
+            else if (c is TextBox || c is ComboBox || c is NumericUpDown || c is ListBox)
             {
                 c.BackColor = inputBg;
                 c.ForeColor = fg;
             }
             else if (c is Button btn)
             {
+                // Farbige Buttons behalten weiße Schrift
                 if (btn.ForeColor != Color.White)
                     btn.ForeColor = fg;
             }
@@ -1076,8 +1466,21 @@ public class SettingsWindow : Form
             }
             else if (c is Label lbl)
             {
-                if (lbl.ForeColor != Color.Gray && lbl.ForeColor != AccentBlue)
+                // Beschreibungs-Labels: Theme-abhängige graue Farbe
+                if (lbl.Tag is string tag && tag == "desc")
+                {
+                    lbl.ForeColor = _isDark ? Color.Gray : Color.FromArgb(100, 100, 100);
+                }
+                // Graue und AccentBlue Labels nicht überschreiben
+                else if (lbl.ForeColor != Color.Gray && lbl.ForeColor != AccentBlue)
+                {
                     lbl.ForeColor = fg;
+                }
+            }
+            else if (c is FlowLayoutPanel || c is TableLayoutPanel)
+            {
+                c.BackColor = bg;
+                c.ForeColor = fg;
             }
         }
     }
