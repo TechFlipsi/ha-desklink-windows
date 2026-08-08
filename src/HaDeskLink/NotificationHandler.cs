@@ -64,7 +64,7 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(command))
             {
-                try { CommandHandler.Execute(command!); } catch { }
+                try { CommandHandler.Execute(command!); } catch (Exception ex) { Console.WriteLine($"[Notification] Command error: {ex.Message}"); }
             }
 
             if (!string.IsNullOrEmpty(message))
@@ -78,7 +78,7 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(command)) return true;
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[Notification] Parse error: {ex.Message}"); }
         return false;
     }
 
@@ -87,6 +87,7 @@ public static class NotificationHandler
         ShowToastOnUiThread(() =>
         {
             var toast = new NotificationToast(title, message);
+            toast.FormClosed += (s, e) => toast.Dispose();
             toast.Show();
         });
     }
@@ -97,6 +98,7 @@ public static class NotificationHandler
         ShowToastOnUiThread(() =>
         {
             var toast = new NotificationToast(title, message, actions, commandOnAction);
+            toast.FormClosed += (s, e) => toast.Dispose();
             toast.Show();
         });
     }
@@ -109,6 +111,7 @@ public static class NotificationHandler
         ShowToastOnUiThread(() =>
         {
             var toast = new NotificationToast(title, message, accentOverride: Color.FromArgb(46, 204, 113));
+            toast.FormClosed += (s, e) => toast.Dispose();
             toast.Show();
         });
     }
@@ -161,7 +164,7 @@ public class NotificationToast : Form
         _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
         _autoCloseTimer.Start();
 
-        Load += (s, e) => PositionBottomLeft();
+        Load += (s, e) => PositionNotification();
     }
 
     private int CalculateHeight(string message, List<NotificationAction>? actions)
@@ -242,20 +245,48 @@ public class NotificationToast : Form
         {
             if (!string.IsNullOrEmpty(a.Command))
             {
-                try { CommandHandler.Execute(a.Command!); } catch { }
+                try { CommandHandler.Execute(a.Command!); } catch (Exception ex) { Console.WriteLine($"[Notification] Action command error: {ex.Message}"); }
             }
             else if (!string.IsNullOrEmpty(_commandOnAction))
             {
-                try { CommandHandler.Execute(_commandOnAction); } catch { }
+                try { CommandHandler.Execute(_commandOnAction); } catch (Exception ex) { Console.WriteLine($"[Notification] Fallback command error: {ex.Message}"); }
             }
         }
         Close();
     }
 
-    private void PositionBottomLeft()
+    private void PositionNotification()
     {
-        var screen = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
-        Location = new Point(screen.Left + 20, screen.Bottom - Height - 20);
+        try
+        {
+            var config = Config.Load();
+            var monitorIndex = config.NotificationMonitor;
+            var position = config.NotificationPosition ?? "bottom_left";
+
+            // Monitor-Auswahl: 0 = Primary, 1+ = spezifischer Monitor
+            Screen? screen = null;
+            if (monitorIndex >= 0 && monitorIndex < Screen.AllScreens.Length)
+                screen = Screen.AllScreens[monitorIndex];
+            else
+                screen = Screen.PrimaryScreen;
+
+            var area = screen?.WorkingArea ?? SystemInformation.WorkingArea;
+            var margin = 20;
+
+            Location = position.ToLowerInvariant() switch
+            {
+                "bottom_right" => new Point(area.Right - Width - margin, area.Bottom - Height - margin),
+                "top_left" => new Point(area.Left + margin, area.Top + margin),
+                "top_right" => new Point(area.Right - Width - margin, area.Top + margin),
+                _ => new Point(area.Left + margin, area.Bottom - Height - margin), // bottom_left (default)
+            };
+        }
+        catch
+        {
+            // Fallback: unten links auf Primary Screen
+            var screen = Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea;
+            Location = new Point(screen.Left + 20, screen.Bottom - Height - 20);
+        }
     }
 
     protected override void OnMouseEnter(EventArgs e) { _autoCloseTimer.Stop(); base.OnMouseEnter(e); }

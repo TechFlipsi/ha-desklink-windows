@@ -98,6 +98,35 @@ public class Config
     /// </summary>
     public string MqttBrokerFallback { get; set; } = "";
 
+    /// <summary>
+    /// Webhook server bind address. "+" = all interfaces (default), "localhost" = local only.
+    /// Set to "localhost" for better security when HA is on the same machine.
+    /// </summary>
+    public string WebhookBindAddress { get; set; } = "+";
+
+    /// <summary>
+    /// Notification position: "bottom_left", "bottom_right", "top_left", "top_right". Default: bottom_left
+    /// </summary>
+    public string NotificationPosition { get; set; } = "bottom_left";
+
+    /// <summary>
+    /// Monitor index for notifications (0 = primary, 1+ = specific monitor). Default: 0
+    /// </summary>
+    public int NotificationMonitor { get; set; } = 0;
+
+    /// <summary>
+    /// Custom Commands: JSON-Array von benutzerdefinierten Skripten/Befehlen
+    /// die von Home Assistant getriggert werden können.
+    /// Format: [{"command":"start_streaming","script":"C:\\Scripts\\stream.bat","name":"Start Streaming"}]
+    /// </summary>
+    public string CustomCommands { get; set; } = "[]";
+
+    /// <summary>
+    /// App Launchers: JSON-Array von Apps die von HA gestartet werden können.
+    /// Format: [{"command":"launch_spotify","path":"spotify","name":"Spotify"}]
+    /// </summary>
+    public string AppLaunchers { get; set; } = "[]";
+
     private string ConfigPath => Path.Combine(ConfigDir, "config.json");
 
     /// <summary>
@@ -232,7 +261,12 @@ public class Config
             MqttPasswordEncrypted = MqttPasswordEncrypted,
             MqttUseSsl = MqttUseSsl,
             MqttAutoConfigured = MqttAutoConfigured,
-            MqttBrokerFallback = MqttBrokerFallback
+            MqttBrokerFallback = MqttBrokerFallback,
+            CustomCommands = CustomCommands,
+            AppLaunchers = AppLaunchers,
+            WebhookBindAddress = WebhookBindAddress,
+            NotificationPosition = NotificationPosition,
+            NotificationMonitor = NotificationMonitor
         };
 
         var json = JsonSerializer.Serialize(saveConfig, new JsonSerializerOptions { WriteIndented = true });

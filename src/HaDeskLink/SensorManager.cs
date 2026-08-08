@@ -81,6 +81,10 @@ public class SensorManager : IDisposable
         var idleTime = GetIdleTimeSensor();
         if (idleTime != null) sensors.Add(idleTime);
 
+        // Presence Detection (binary_sensor: on wenn idle_time < 300s UND connectivity = on)
+        var presence = GetPresence();
+        if (presence != null) sensors.Add(presence);
+
         // Audio sensors (volume + mute)
         sensors.AddRange(GetAudioSensors());
 
@@ -97,6 +101,10 @@ public class SensorManager : IDisposable
 
         // Network throughput
         sensors.AddRange(GetNetworkSensors());
+
+        // Bluetooth devices connected (Anzahl verbundener Geräte)
+        var bluetooth = GetBluetoothDevices();
+        if (bluetooth != null) sensors.Add(bluetooth);
 
        // App version
        sensors.Add(GetAppVersion());
@@ -686,8 +694,20 @@ public class SensorManager : IDisposable
     {
         try
         {
+            // Ping HA URL host instead of hardcoded 8.8.8.8 — works in isolated networks
+            var pingHost = "8.8.8.8";
+            try
+            {
+                var config = Config.Load();
+                if (!string.IsNullOrEmpty(config.HaUrl) && Uri.TryCreate(config.HaUrl, UriKind.Absolute, out var haUri))
+                {
+                    pingHost = haUri.Host;
+                }
+            }
+            catch { }
+
             using var ping = new System.Net.NetworkInformation.Ping();
-            var reply = ping.Send("8.8.8.8", 2000);
+            var reply = ping.Send(pingHost, 2000);
             if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
                 return new SensorData("connectivity", "Connectivity", "on",
                     deviceClass: "connectivity", icon: "mdi:check-network");
@@ -1185,21 +1205,20 @@ public class SensorManager : IDisposable
                 return null;
             }
 
-            var sessionManagerGuid = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
-            var sessionManagerPtr = IntPtr.Zero;
-            var sessionManager2 = IntPtr.Zero;
+            IAudioSessionManager2? sessionManager = null;
+            IAudioSessionEnumerator? sessionEnum = null;
 
             try
             {
                 var iidIAudioSessionManager2 = new Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F");
-                hr = Marshal.QueryInterface(devicePtr, ref iidIAudioSessionManager2, out sessionManager2);
+                hr = Marshal.QueryInterface(devicePtr, ref iidIAudioSessionManager2, out var sessionManager2);
                 if (hr != 0)
                 {
                     return new SensorData("mic_active", "Microphone Active", "off",
                         deviceClass: "plug", icon: "mdi:microphone");
                 }
 
-                var sessionManager = Marshal.GetObjectForIUnknown(sessionManager2) as IAudioSessionManager2;
+                sessionManager = Marshal.GetObjectForIUnknown(sessionManager2) as IAudioSessionManager2;
                 if (sessionManager == null)
                 {
                     return new SensorData("mic_active", "Microphone Active", "off",
@@ -1212,7 +1231,7 @@ public class SensorManager : IDisposable
                         deviceClass: "plug", icon: "mdi:microphone");
                 }
 
-                var sessionEnum = Marshal.GetObjectForIUnknown(sessionEnumPtr) as IAudioSessionEnumerator;
+                sessionEnum = Marshal.GetObjectForIUnknown(sessionEnumPtr) as IAudioSessionEnumerator;
                 if (sessionEnum == null)
                 {
                     return new SensorData("mic_active", "Microphone Active", "off",
@@ -1231,10 +1250,6 @@ public class SensorManager : IDisposable
                             if (state == 1)
                             {
                                 Marshal.ReleaseComObject(session);
-                                Marshal.ReleaseComObject(sessionEnum);
-                                Marshal.ReleaseComObject(sessionManager);
-                                Marshal.ReleaseComObject(devicePtr);
-                                Marshal.ReleaseComObject(enumerator);
                                 return new SensorData("mic_active", "Microphone Active", "on",
                                     deviceClass: "plug", icon: "mdi:microphone");
                             }
@@ -1242,12 +1257,11 @@ public class SensorManager : IDisposable
                         Marshal.ReleaseComObject(session);
                     }
                 }
-
-                Marshal.ReleaseComObject(sessionEnum);
-                Marshal.ReleaseComObject(sessionManager);
             }
             finally
             {
+                if (sessionEnum != null) Marshal.ReleaseComObject(sessionEnum);
+                if (sessionManager != null) Marshal.ReleaseComObject(sessionManager);
                 Marshal.ReleaseComObject(devicePtr);
                 Marshal.ReleaseComObject(enumerator);
             }
@@ -1391,6 +1405,95 @@ public class SensorManager : IDisposable
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
         return new SensorData("ha_desklink_version", Localization.Get("ha_desklink_version", "HA DeskLink Version"),
             version, icon: "mdi:information-outline");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Presence Detection (binary_sensor)
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Presence Detection: Kombiniert idle_time und connectivity.
+    /// Sensor ist "on" wenn idle_time &lt; 300 Sekunden UND connectivity = on.
+    /// </summary>
+    private static SensorData? GetPresence()
+    {
+        try
+        {
+            var idleMs = GetIdleTimeMs();
+            var idleSeconds = idleMs / 1000.0;
+            var isIdle = idleSeconds < 300;
+
+            // Connectivity prüfen (Ping wie GetConnectivity)
+            var isOnline = false;
+            try
+            {
+                var pingHost = "8.8.8.8";
+                try
+                {
+                    var config = Config.Load();
+                    if (!string.IsNullOrEmpty(config.HaUrl) && Uri.TryCreate(config.HaUrl, UriKind.Absolute, out var haUri))
+                        pingHost = haUri.Host;
+                }
+                catch { }
+
+                using var ping = new System.Net.NetworkInformation.Ping();
+                var reply = ping.Send(pingHost, 2000);
+                isOnline = reply.Status == System.Net.NetworkInformation.IPStatus.Success;
+            }
+            catch { }
+
+            var isPresent = isIdle && isOnline ? "on" : "off";
+
+            return new SensorData("presence", "Presence", isPresent,
+                deviceClass: "presence", icon: "mdi:account-check")
+            {
+                SensorKind = SensorType.BinarySensor
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Bluetooth Devices (Anzahl verbundener Geräte)
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Zählt verbundene Bluetooth-Geräte über PowerShell Get-PnpDevice.
+    /// Gibt null zurück wenn Bluetooth nicht verfügbar ist.
+    /// </summary>
+    private static SensorData? GetBluetoothDevices()
+    {
+        try
+        {
+            // PowerShell: Get-PnpDevice -Class Bluetooth | Where-Object Status -eq 'OK'
+            // Zählt verbundene Bluetooth-Geräte
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = "-NoProfile -Command \"(Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'OK' } | Measure-Object).Count\"",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            var output = proc?.StandardOutput.ReadToEnd()?.Trim();
+            proc?.WaitForExit(5000);
+
+            if (string.IsNullOrEmpty(output)) return null;
+
+            if (int.TryParse(output, out int count))
+            {
+                return new SensorData("bluetooth_devices_connected", "Bluetooth Devices Connected",
+                    count, "",
+                    icon: "mdi:bluetooth-connect", stateClass: "measurement");
+            }
+        }
+        catch { /* Bluetooth nicht verfügbar */ }
+
+        return null;
     }
 
     // ─────────────────────────────────────────────────────────────────

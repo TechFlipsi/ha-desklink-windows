@@ -96,11 +96,14 @@ public class DeskLinkApp
 
         try
         {
-            _webhookServer = new WebhookServer(_config.HaToken);
+            _webhookServer = new WebhookServer(_config.HaToken, bindAddress: _config.WebhookBindAddress);
             _webhookServer.SetTrayIcon(_trayIcon);
             _webhookServer.Start();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DeskLinkApp] Failed to start WebhookServer: {ex.Message}");
+        }
 
         // Start sensor loop
         if (_sensors != null)

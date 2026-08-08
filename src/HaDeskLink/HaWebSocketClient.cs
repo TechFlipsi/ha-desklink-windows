@@ -270,7 +270,7 @@ public class HaWebSocketClient : IDisposable
                     if (!string.IsNullOrEmpty(command) && actions == null)
                     {
                         try { _onCommand?.Invoke(command!); }
-                        catch { }
+                        catch (Exception ex) { Console.WriteLine($"[WebSocket] Command execution error: {ex.Message}"); }
                     }
 
                     // Show notification
@@ -288,7 +288,7 @@ public class HaWebSocketClient : IDisposable
                 }
             }
         }
-        catch { }
+        catch (Exception ex) { Console.WriteLine($"[WebSocket] Connection error: {ex.Message}"); }
     }
 
     /// <summary>
