@@ -18,40 +18,31 @@ using System.Text.Json;
 namespace HaDeskLink;
 
 /// <summary>
-/// Simple localization system using JSON language files.
-/// Users can add their own language by creating a new JSON file in the Lang/ directory.
+/// JSON-basiertes Lokalisierungssystem.
+/// Benutzer können eigene Sprachen hinzufügen, indem sie eine JSON-Datei im Lang/ Ordner ablegen.
+/// Die Sprachnamen (Code → Nativer Name) werden aus languages.json gelesen.
 /// </summary>
 public static class Localization
 {
     private static Dictionary<string, string> _strings = new();
+    private static Dictionary<string, string> _languageNames = new();
     private static string _currentLanguage = "de";
 
     /// <summary>
-    /// Available languages (auto-detected from Lang/ directory)
+    /// Verfügbare Sprachen (automatisch aus dem Lang/ Ordner erkannt, ohne languages.json)
     /// </summary>
     public static List<string> AvailableLanguages { get; private set; } = new() { "de" };
 
     /// <summary>
-    /// Friendly names for languages
-    /// </summary>
-    private static readonly Dictionary<string, string> LanguageNames = new()
-    {
-        { "de", "Deutsch" },
-        { "en", "English" },
-        { "es", "Español" },
-        { "fr", "Français" },
-        { "zh", "中文" },
-        { "ja", "日本語" },
-    };
-
-    /// <summary>
-    /// Get friendly name for a language code
+    /// Liest den Anzeigenamen für einen Sprachcode aus languages.json.
+    /// Fallback: der Code selbst in Großbuchstaben, wenn languages.json fehlt oder der Code nicht gefunden wird.
     /// </summary>
     public static string GetLanguageName(string code) =>
-        LanguageNames.TryGetValue(code, out var name) ? name : code.ToUpper();
+        _languageNames.TryGetValue(code, out var name) ? name : code.ToUpper();
 
     /// <summary>
-    /// Load a language. Falls back to German if the file doesn't exist.
+    /// Lädt eine Sprache. Fällt auf Deutsch zurück, wenn die Datei nicht existiert.
+    /// Lädt auch languages.json für die Sprachnamen und scannt den Lang/ Ordner nach verfügbaren Sprachen.
     /// </summary>
     public static void LoadLanguage(string languageCode)
     {
@@ -60,20 +51,24 @@ public static class Localization
         if (!Directory.Exists(langDir))
             langDir = Path.Combine(Path.GetDirectoryName(typeof(Localization).Assembly.Location)!, "Lang");
 
-        // Scan available languages
+        // Sprachnamen aus languages.json laden (Code → Nativer Name)
+        LoadLanguageNames(langDir);
+
+        // Verfügbare Sprachen scannen (alle *.json außer languages.json)
         AvailableLanguages = new List<string>();
         if (Directory.Exists(langDir))
         {
             foreach (var file in Directory.GetFiles(langDir, "*.json"))
             {
                 var code = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-                AvailableLanguages.Add(code);
+                if (code != "languages")
+                    AvailableLanguages.Add(code);
             }
         }
         if (AvailableLanguages.Count == 0)
             AvailableLanguages.Add("de");
 
-        // Load requested language, fallback to German
+        // Angeforderte Sprache laden, Fallback auf Deutsch
         var langFile = Path.Combine(langDir, $"{languageCode}.json");
         if (!File.Exists(langFile))
             langFile = Path.Combine(langDir, "de.json");
@@ -93,7 +88,29 @@ public static class Localization
     }
 
     /// <summary>
-    /// Get a localized string by key. Falls back to key itself if not found.
+    /// Lädt die Sprachnamen aus languages.json (Code → Nativer Name).
+    /// Fallback: leeres Dictionary, GetLanguageName() zeigt dann nur den Code in Großbuchstaben.
+    /// </summary>
+    private static void LoadLanguageNames(string langDir)
+    {
+        _languageNames = new Dictionary<string, string>();
+        var namesFile = Path.Combine(langDir, "languages.json");
+        if (File.Exists(namesFile))
+        {
+            try
+            {
+                var json = File.ReadAllText(namesFile);
+                _languageNames = JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new();
+            }
+            catch
+            {
+                _languageNames = new();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Holt einen lokalisierten String anhand des Keys. Fällt auf den Key selbst zurück, wenn nicht gefunden.
     /// </summary>
     public static string Get(string key)
     {
@@ -101,7 +118,7 @@ public static class Localization
     }
 
     /// <summary>
-    /// Get a localized string with format arguments. E.g. Get("update_failed", ex.Message)
+    /// Holt einen lokalisierten String mit Format-Argumenten. Z.B. Get("update_failed", ex.Message)
     /// </summary>
     public static string Get(string key, params object[] args)
     {
@@ -111,7 +128,7 @@ public static class Localization
     }
 
     /// <summary>
-    /// Current language code
+    /// Aktueller Sprachcode
     /// </summary>
     public static string CurrentLanguage => _currentLanguage;
 }

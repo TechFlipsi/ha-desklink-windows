@@ -12,8 +12,10 @@
 // GNU General Public License for more details.
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace HaDeskLink;
 
@@ -85,13 +87,30 @@ public static class CommandHandler
                 BrightnessDown();
                 break;
             default:
+                // TTS (Text-to-Speech): "tts:Hallo Welt"
+                if (command.StartsWith("tts:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var text = command.Substring(4);
+                    SpeakText(text);
+                }
+                // App Launcher: "launch:spotify"
+                else if (command.StartsWith("launch:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var appCommand = command.Substring(7).Trim();
+                    LaunchApp(appCommand);
+                }
                 // Check for brightness value command: "brightness:50"
-                if (command.StartsWith("brightness:", StringComparison.OrdinalIgnoreCase))
+                else if (command.StartsWith("brightness:", StringComparison.OrdinalIgnoreCase))
                 {
                     if (int.TryParse(command.Substring("brightness:".Length), out int value))
                         SensorManager.SetBrightness(Math.Clamp(value, 0, 100));
                     else
                         throw new NotSupportedException($"Invalid brightness value: {command}");
+                }
+                // Custom Commands: prüfe ob der Command in der CustomCommands-Liste ist
+                else if (TryExecuteCustomCommand(command))
+                {
+                    // Wurde bereits in TryExecuteCustomCommand ausgeführt
                 }
                 else
                     throw new NotSupportedException($"{Localization.Get("command_unknown", command)}");
@@ -226,7 +245,7 @@ public static class CommandHandler
             var filePath = System.IO.Path.Combine(tempPath, $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
             bmp.Save(filePath, System.Drawing.Imaging.ImageFormat.Png);
 
-            // Fire event to upload to HA asynchronously
+            // Fire event to upload to HA asynchronously, then clean up temp file
             System.Threading.Tasks.Task.Run(async () =>
             {
                 try
@@ -238,6 +257,10 @@ public static class CommandHandler
                     }
                 }
                 catch { }
+                finally
+                {
+                    try { if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath); } catch { }
+                }
             });
         }
         catch { }
@@ -252,5 +275,125 @@ public static class CommandHandler
         keybd_event(0x53, 0, KEYEVENTF_KEYUP, 0); // S up
         keybd_event(0x10, 0, KEYEVENTF_KEYUP, 0); // Shift up
         keybd_event(0x5B, 0, KEYEVENTF_KEYUP, 0); // Win up
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  TTS (Text-to-Speech) — Windows
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Spricht Text über Windows SAPI (System.Speech) via PowerShell.
+    /// Der Text wird sicher escaped um Command-Injection zu verhindern.
+    /// </summary>
+    private static void SpeakText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        // Sichere Escaping: nur single quotes escapen, dann in single quotes wickeln
+        // Verhindert Command-Injection durch den TTS-Text
+        var safeText = text.Replace("'", "''");
+
+        try
+        {
+            // PowerShell mit System.Speech Assembly — Verfügbar ab Windows 10
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell",
+                Arguments = $"-NoProfile -Command \"Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{safeText}')\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TTS] Fehler: {ex.Message}");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  App Launcher — Windows
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Startet eine App anhand des konfigurierten AppLauncher-Commands.
+    /// Sucht in AppLaunchers Config nach dem command und startet den Pfad.
+    /// </summary>
+    private static void LaunchApp(string appCommand)
+    {
+        if (string.IsNullOrWhiteSpace(appCommand)) return;
+
+        try
+        {
+            var config = Config.Load();
+            var launchers = JsonSerializer.Deserialize<List<AppLauncherEntry>>(config.AppLaunchers);
+            if (launchers == null) return;
+
+            var entry = launchers.Find(l =>
+                string.Equals(l.Command, appCommand, StringComparison.OrdinalIgnoreCase));
+            if (entry == null || string.IsNullOrEmpty(entry.Path))
+                throw new NotSupportedException($"App Launcher '{appCommand}' nicht gefunden");
+
+            // Windows: direkter Process.Start mit UseShellExecute für Apps
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = entry.Path,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AppLauncher] Fehler: {ex.Message}");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Custom Commands — Windows
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Prüft ob der Command in der CustomCommands-Liste der Config ist.
+    /// Wenn ja, wird das konfigurierte Skript ausgeführt.
+    /// </summary>
+    /// <returns>true wenn der Command gefunden und ausgeführt wurde</returns>
+    private static bool TryExecuteCustomCommand(string command)
+    {
+        try
+        {
+            var config = Config.Load();
+            var customCommands = JsonSerializer.Deserialize<List<CustomCommandEntry>>(config.CustomCommands);
+            if (customCommands == null || customCommands.Count == 0) return false;
+
+            var entry = customCommands.Find(c =>
+                string.Equals(c.Command, command, StringComparison.OrdinalIgnoreCase));
+            if (entry == null || string.IsNullOrEmpty(entry.Script)) return false;
+
+            // Windows: cmd /c script
+            Process.Start("cmd", "/c " + entry.Script);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  JSON Modelle für Custom Commands und App Launchers
+    // ─────────────────────────────────────────────────────────────────
+
+    private class CustomCommandEntry
+    {
+        public string Command { get; set; } = "";
+        public string Script { get; set; } = "";
+        public string Name { get; set; } = "";
+    }
+
+    private class AppLauncherEntry
+    {
+        public string Command { get; set; } = "";
+        public string Path { get; set; } = "";
+        public string Name { get; set; } = "";
     }
 }

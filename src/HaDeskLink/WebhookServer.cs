@@ -36,13 +36,13 @@ public class WebhookServer : IDisposable
 
     public int Port { get; } = 59123;
 
-    public WebhookServer(string token, int port = 59123)
+    public WebhookServer(string token, int port = 59123, string bindAddress = "+")
     {
         _token = token;
         Port = port;
         _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://+:{port}/command/");
-        _listener.Prefixes.Add($"http://+:{port}/webhook/");
+        _listener.Prefixes.Add($"http://{bindAddress}:{port}/command/");
+        _listener.Prefixes.Add($"http://{bindAddress}:{port}/webhook/");
     }
 
     public void SetTrayIcon(NotifyIcon? trayIcon) => _trayIcon = trayIcon;
@@ -74,13 +74,45 @@ public class WebhookServer : IDisposable
         }
     }
 
+    private bool ValidateToken(string token)
+    {
+        if (string.IsNullOrEmpty(_token) || string.IsNullOrEmpty(token))
+            return false;
+        var expectedBytes = Encoding.UTF8.GetBytes(_token);
+        var actualBytes = Encoding.UTF8.GetBytes(token);
+        if (expectedBytes.Length != actualBytes.Length)
+            return false;
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
+    }
+
     private void ProcessRequest(HttpListenerContext context)
     {
         var path = context.Request.Url?.AbsolutePath ?? "";
 
+        // Extract token from Authorization header (preferred) or query string (legacy)
+        var authHeader = context.Request.Headers["Authorization"];
+        var token = "";
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            token = authHeader.Substring("Bearer ".Length).Trim();
+        }
+        else
+        {
+            // Legacy: token in query string (less secure — logs may capture it)
+            token = context.Request.QueryString["token"] ?? "";
+        }
+
         if (path.Contains("/webhook"))
         {
-            // HA mobile_app notification webhook
+            // HA mobile_app notification webhook — requires token auth
+            if (!ValidateToken(token))
+            {
+                Console.WriteLine("[WebhookServer] Unauthorized webhook attempt");
+                context.Response.StatusCode = 401;
+                context.Response.Close();
+                return;
+            }
+
             try
             {
                 using var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8);
@@ -97,18 +129,18 @@ public class WebhookServer : IDisposable
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[WebhookServer] Webhook error: {ex.Message}");
                 RespondJson(context, new { success = false, error = ex.Message }, 400);
             }
             return;
         }
 
-        // Command endpoint: /command?token=xxx&action=shutdown
-        var query = context.Request.QueryString;
-        var action = query["action"] ?? "";
-        var token = query["token"] ?? "";
+        // Command endpoint: /command?action=shutdown (token via Authorization header)
+        var action = context.Request.QueryString["action"] ?? "";
 
-        if (token != _token)
+        if (!ValidateToken(token))
         {
+            Console.WriteLine("[WebhookServer] Unauthorized command attempt");
             context.Response.StatusCode = 401;
             context.Response.Close();
             return;
@@ -121,6 +153,7 @@ public class WebhookServer : IDisposable
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[WebhookServer] Command error: {ex.Message}");
             RespondJson(context, new { success = false, error = ex.Message }, 400);
         }
     }

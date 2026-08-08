@@ -26,6 +26,7 @@ public class QuickActionHandler : IDisposable
 
     private readonly int _hotkeyId;
     private IntPtr _hwnd;
+    private NativeWindow? _nativeWindow;
     private readonly Action _onHotkey;
     private readonly string _modifiers;
     private readonly string _key;
@@ -55,9 +56,9 @@ public class QuickActionHandler : IDisposable
 
         // We need a window handle to register hotkeys
         // Use an invisible message-only window
-        var helper = new NativeWindow();
-        helper.AssignHandle(CreateMessageOnlyWindow());
-        _hwnd = helper.Handle;
+        _nativeWindow = new NativeWindow();
+        _nativeWindow.AssignHandle(CreateMessageOnlyWindow());
+        _hwnd = _nativeWindow.Handle;
 
         Application.AddMessageFilter(_filter);
 
@@ -145,6 +146,7 @@ public class QuickActionHandler : IDisposable
             if (_registered && _hwnd != IntPtr.Zero)
                 UnregisterHotKey(_hwnd, _hotkeyId);
             Application.RemoveMessageFilter(_filter);
+            _nativeWindow?.ReleaseHandle();
             _disposed = true;
         }
     }
