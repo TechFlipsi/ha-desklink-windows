@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
 [![License](https://img.shields.io/github/license/TechFlipsi/ha-desklink-dotnet?label=License)](https://github.com/TechFlipsi/ha-desklink-dotnet/LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/TechFlipsi/ha-desklink-dotnet/total?label=Downloads)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases)
-[![Discord](https://img.shields.io/discord/1496261911677894867?label=Discord)](https://discord.gg/7G2SqpXpsC)
+[![Discord](https://img.shields.io/discord/1496261911677894867?label=Discord)](https://discord.com/invite/zHPhQ7EaqH)
 
 **Windows Companion App for Home Assistant** – native, fast, reliable.
 
@@ -242,7 +242,7 @@ This program is free software: you can redistribute it and/or modify it under th
 There is now a macOS version of HA DeskLink! 🎉 See [ha-desklink-mac](https://github.com/TechFlipsi/ha-desklink-mac) – ⚠️ Community Test Version, not tested by the developer.
 
 ## Community
-💬 [Discord](https://discord.gg/7G2SqpXpsC) – Questions, Feedback, Help
+💬 [Discord](https://discord.com/invite/zHPhQ7EaqH) – Questions, Feedback, Help
 
 ## Credits
 
