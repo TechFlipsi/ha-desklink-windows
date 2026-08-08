@@ -120,7 +120,6 @@ public class SettingsWindow : Form
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
             FixedPanel = FixedPanel.Panel1,
-            SplitterDistance = 200,
             SplitterWidth = 1,
             BorderStyle = BorderStyle.None,
             Panel1MinSize = 180,
@@ -158,6 +157,11 @@ public class SettingsWindow : Form
 
         // SplitContainer zum Form hinzufügen (vor Bottom Bar, damit Dock=Fill den Rest füllt)
         Controls.Add(_splitContainer);
+
+        // SplitterDistance NACH dem Hinzufügen zum Form setzen — sonst hat der Container
+        // noch keine Width und SplitterDistance=200 crasht (muß zwischen Panel1MinSize und Width-Panel2MinSize liegen)
+        _splitContainer.SplitterDistance = Math.Max(_splitContainer.Panel1MinSize,
+            Math.Min(200, _splitContainer.Width - _splitContainer.Panel2MinSize));
 
         // Bottom Bar — Save, Reconnect, Status (immer sichtbar unten)
         BuildBottomBar();
