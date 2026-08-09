@@ -321,7 +321,7 @@ public class HaApiClient
             using var ghClient = new HttpClient();
             ghClient.DefaultRequestHeaders.Add("User-Agent", "HA-DeskLink");
 
-            var resp = await ghClient.GetAsync("https://api.github.com/repos/TechFlipsi/ha-desklink-dotnet/releases");
+            var resp = await ghClient.GetAsync("https://api.github.com/repos/TechFlipsi/ha-desklink-windows/releases");
             if (!resp.IsSuccessStatusCode) return null;
             var data = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
             var currentVersion = GetVersion();

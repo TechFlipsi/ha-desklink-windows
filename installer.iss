@@ -1,19 +1,21 @@
 ; HA DeskLink Inno Setup Installer
+; Version is injected by CI via sed — see .github/workflows/build.yml
 #define AppName "HA DeskLink"
 #define AppExe "HA_DeskLink.exe"
+#define AppVersion "0.0.0"
 
 [Setup]
 AppName={#AppName}
-AppVersion=4.4.2
+AppVersion={#AppVersion}
 AppPublisher=Fabian Kirchweger
-AppPublisherURL=https://github.com/FKirchweger/ha-desklink-dotnet
-AppSupportURL=https://github.com/FKirchweger/ha-desklink-dotnet/issues
+AppPublisherURL=https://github.com/TechFlipsi/ha-desklink-windows
+AppSupportURL=https://github.com/TechFlipsi/ha-desklink-windows/issues
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 OutputDir=output
-OutputBaseFilename=HA_DeskLink_Setup_4.4.2
+OutputBaseFilename=HA_DeskLink_Setup_{#AppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
