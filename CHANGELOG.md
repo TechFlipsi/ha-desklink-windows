@@ -1,3 +1,55 @@
+## v5.0.4 (2026-08-09)
+
+### 🔧 Bugfixes
+- **Installer-Versionierung repariert** – Die Setup-EXE hatte noch den hartcodierten Dateinamen `HA_DeskLink_Setup_4.4.2.exe` statt der korrekten Versionsnummer. Der Auto-Updater fand dadurch keine neue Version. Die Version wird jetzt dynamisch aus der VERSION-Datei in den Installer injiziert.
+- **Auto-Updater API-URL korrigiert** – Veraltete Repo-URL `ha-desklink-dotnet` durch `ha-desklink-windows` ersetzt
+- **Discord-Webhook Release-Link korrigiert**
+- **Inno Setup URLs aktualisiert** – Alte `FKirchweger/ha-desklink-dotnet` URLs durch `TechFlipsi/ha-desklink-windows` ersetzt
+
+## v5.0.3 (2026-08-08)
+
+### 🐛 Bugfixes
+- SplitContainer Absturz beim Öffnen der Einstellungen behoben – durch Dock=Left + Dock=Fill Panels ersetzt
+
+## v5.0.2 (2026-08-08)
+
+### 🐛 Bugfixes
+- SplitContainer SplitterDistance Absturz beim Einstellungs-Dialog behoben
+
+## v5.0.1 (2026-08-08)
+
+### ✨ Neue Features
+- **Desktop UI Redesign** – SplitContainer Sidebar (200px) + Inhaltsbereich, Bottom Bar
+- **Einstellungen mit Erklärungen** – Jede Einstellung hat jetzt einen Beschreibungstext und Beispiel
+- **24 neue `desc_*` i18n-Keys** in allen 15 Sprachen
+
+## v5.0.0 (2026-08-08)
+
+### 🔒 Security
+- **DPAPI Token-Verschlüsselung** – HA-Token wird mit Windows DPAPI (CurrentUser) verschlüsselt, nie mehr im Klartext gespeichert
+- **MQTT-Passwort-Verschlüsselung** – MQTT-Passwort ebenfalls DPAPI-verschlüsselt
+- **Login-Retry-Limit** – Maximal 3 fehlgeschlagene Auth-Versuche
+
+### ✨ Neue Features
+- **WebView2 Dashboard** mit automatischer Installation
+- **6 neue Sensoren**: idle_time, audio_volume, mic_active, webcam_active, gpu_memory, brightness
+- **Neue Befehle**: lock_screen, sleep, hibernate, volume_up/down, media_play_pause/next/previous, brightness_up/down
+- **Actionable Notifications** – Benachrichtigungen mit Aktions-Buttons
+- **Quick Actions** – Konfigurierbare Hotkeys (Ctrl+Shift+H/D/S)
+- **Custom Commands & App Launchers** – Eigene Skripte und App-Starts von HA aus
+- **Notification Position & Monitor** – Konfigurierbare Position und Monitor für Toast-Notifications
+- **Auto-Update von GitHub Releases**
+- **Nativer Windows Tray**
+
+### 🌍 i18n
+- **15 Sprachen** – Deutsch, Englisch, Spanisch, Französisch, Chinesisch, Japanisch + 9 weitere
+- **Settings Redesign** – Moderne Sidebar-Navigation mit Beschreibungstexten
+
+### 🏗️ Architektur
+- **LibreHardwareMonitor** für CPU/GPU-Temperaturen (ersetzt WinRing0)
+- **App-Manifest** mit `requireAdministrator` – App läuft immer als Admin
+- **Task Scheduler Autostart** mit `HighestAvailable` – kein UAC-Prompt beim Autostart
+
 ## v4.4.0 (2026-05-24)
 
 ### MQTT Support (optional)

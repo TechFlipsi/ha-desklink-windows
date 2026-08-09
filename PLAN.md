@@ -1,4 +1,4 @@
-# HA DeskLink v4.0 - C# / .NET 8
+# HA DeskLink v5.0 - C# / .NET 8
 
 Windows Companion App für Home Assistant – nativ, schnell, ohne Python.
 
@@ -12,7 +12,7 @@ Windows Companion App für Home Assistant – nativ, schnell, ohne Python.
 ## Architektur
 
 ```
-ha-desklink-dotnet/
+ha-desklink-windows/
 ├── src/
 │   ├── HaDeskLink/              # Hauptprojekt
 │   │   ├── HaDeskLink.csproj
@@ -54,4 +54,4 @@ dotnet publish src/HaDeskLink -c Release -r win-x64 --self-contained -p:PublishS
 ```
 
 ## Status
-✅ Veröffentlicht – v4.0.0
+✅ Veröffentlicht – v5.0.4
