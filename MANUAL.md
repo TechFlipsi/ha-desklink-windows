@@ -98,7 +98,7 @@ HASS.Agent ist ein großartiges Projekt – aber es erfordert **MQTT** und eine 
 ## Installation
 
 ### Windows
-1. `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest) herunterladen
+1. `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest) herunterladen
 2. **Rechtsklick → „Als Administrator ausführen"** ⚠️ Normaler Doppelklick funktioniert nicht!
 3. Einrichtung folgt automatisch
 
@@ -467,7 +467,7 @@ HASS.Agent is a great project – but it requires **MQTT** and a **separate inte
 ### Installation
 
 **Windows:**
-1. Download `HA_DeskLink_Setup_x.x.x.exe` from [Releases](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
+1. Download `HA_DeskLink_Setup_x.x.x.exe` from [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
 2. **Right-click → "Run as Administrator"** ⚠️ Normal double-click won't work!
 3. Setup follows automatically
 

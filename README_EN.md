@@ -1,9 +1,9 @@
-# HA DeskLink v4.3
+# HA DeskLink v5.0
 
-[![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
-[![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
-[![License](https://img.shields.io/github/license/TechFlipsi/ha-desklink-dotnet?label=License)](https://github.com/TechFlipsi/ha-desklink-dotnet/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/TechFlipsi/ha-desklink-dotnet/total?label=Downloads)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-windows/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-windows/actions)
+[![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-windows?label=Version)](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
+[![License](https://img.shields.io/github/license/TechFlipsi/ha-desklink-windows?label=License)](https://github.com/TechFlipsi/ha-desklink-windows/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/TechFlipsi/ha-desklink-windows/total?label=Downloads)](https://github.com/TechFlipsi/ha-desklink-windows/releases)
 [![Discord](https://img.shields.io/discord/1496261911677894867?label=Discord)](https://discord.com/invite/zHPhQ7EaqH)
 
 **Windows Companion App for Home Assistant** – native, fast, reliable.
@@ -17,14 +17,23 @@ Written in **C# / .NET 8** – driverless sensor readings via WMI + PerformanceC
 - 🖥️ **Embedded Dashboard** – WebView2 shows HA right in the app (login once, session persists)
 - ⚡ **PC Commands from HA** – Shutdown, Restart, Hibernate, Sleep, Lock, Volume, Media Control, and more via notifications
 - 📬 **Notifications** – HA sends toast notifications to your PC
+- 🔔 **Actionable Notifications** – Notifications with action buttons
+- ⚡ **Quick Actions** – Configurable hotkeys for entity toggles (Quick Actions: Ctrl+Shift+H, Dashboard: Ctrl+Shift+D, Settings: Ctrl+Shift+S)
+- 📸 **Screenshot** – Real screenshot + upload as HA event
+- ⚙️ **Settings** – Completely redesigned: GroupBoxes, entity dropdown, JSON editor
+- 🎨 **Dark Mode** – Automatic (System), Light or Dark selectable
+- 🌐 **6 Languages** – German, English, Spanish, French, Chinese, Japanese
+- 🔌 **Custom Commands & App Launchers** – Run your own scripts and launch apps from HA
+- 📌 **Notification Position** – Configurable position for toast notifications
+- 🖥️ **Notification Monitor** – Configurable monitor for toast notifications
 - 🔌 **mobile_app Protocol** – identical to the mobile app, no extra HA configuration needed
 - 🔄 **Auto-Update** from GitHub Releases
 - 📌 **System Tray** – runs minimized in the background
-- 🛡️ **Admin Rights** – automatically requested for CPU/GPU temperature
+- 🛡️ **Admin Rights** – App starts automatically as Administrator (for CPU/GPU temperature), autostart via Task Scheduler with highest privileges
 
-## MQTT (v4.3)
+## MQTT (v5.0)
 
-HA DeskLink v4.3 brings **optional MQTT support** for advanced features:
+HA DeskLink v5.0 brings **optional MQTT support** for advanced features:
 
 - 🔊 **Media Player Entity** – Your PC appears as a Media Player in Home Assistant with now-playing info, play/pause and volume control
 - 📡 **PC Status Binary Sensor** – Instant online/offline detection via Last Will Testament (LWT)
@@ -41,7 +50,7 @@ MQTT is **optional** – HA DeskLink works without MQTT as usual.
 - No .NET Runtime required – everything included in the installer
 
 ## Installation
-1. Download the latest `HA_DeskLink_Setup_x.x.x.exe` from [Releases](https://github.com/FKirchweger/ha-desklink-dotnet/releases/latest)
+1. Download the latest `HA_DeskLink_Setup_x.x.x.exe` from [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
 2. **Right-click → "Run as Administrator"** ⚠️ A normal double-click or waiting for UAC will cause an error – please start directly via right-click as administrator.
 3. Enter HA URL + Long-Lived Token
 4. Done! 🎉
@@ -219,7 +228,7 @@ iscc installer.iss
 | Config | System.Text.Json |
 
 ## v1.x (Python)
-The Python version is completed and archived: [ha-desklink](https://github.com/FKirchweger/ha-desklink)
+The Python version is completed and archived: [ha-desklink](https://github.com/TechFlipsi/ha-desklink)
 
 ## 📐 Versioning
 Starting from v2.2.1, each platform has **independent version numbers**:
@@ -253,8 +262,8 @@ There is now a macOS version of HA DeskLink! 🎉 See [ha-desklink-mac](https://
 
 | Model | Role |
 |---|---|
-| **GLM-5.1** | Main model |
+| **GLM-5.2** | Main model |
 | **DeepSeek V4 Pro** | Sub-agents |
 
 ### Attribution
-This project was created with AI assistance. All code was written and developed by **GLM-5.1** (J.A.R.V.I.S. – Hermes Agent) – from architecture to implementation to debugging. Sub-agents powered by **DeepSeek V4 Pro** were used for tests and audits. This English documentation was also translated from German by AI. The German documentation is the original version.
+This project was created with AI assistance. All code was written and developed by **GLM-5.2** (J.A.R.V.I.S. – Hermes Agent) – from architecture to implementation to debugging. Sub-agents powered by **DeepSeek V4 Pro** were used for tests and audits. This English documentation was also translated from German by AI. The German documentation is the original version.

@@ -1,9 +1,9 @@
-# HA DeskLink v4.3
+# HA DeskLink v5.0
 
-[![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-dotnet/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-dotnet/actions)
-[![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-dotnet?label=Version)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases/latest)
-[![License](https://img.shields.io/github/license/TechFlipsi/ha-desklink-dotnet?label=License)](https://github.com/TechFlipsi/ha-desklink-dotnet/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/TechFlipsi/ha-desklink-dotnet/total?label=Downloads)](https://github.com/TechFlipsi/ha-desklink-dotnet/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-windows/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-windows/actions)
+[![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-windows?label=Version)](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
+[![License](https://img.shields.io/github/license/TechFlipsi/ha-desklink-windows?label=License)](https://github.com/TechFlipsi/ha-desklink-windows/LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/TechFlipsi/ha-desklink-windows/total?label=Downloads)](https://github.com/TechFlipsi/ha-desklink-windows/releases)
 [![Discord](https://img.shields.io/discord/1496261911677894867?label=Discord)](https://discord.com/invite/zHPhQ7EaqH)
 
 **Windows Companion App für Home Assistant** – nativ, schnell, zuverlässig.
@@ -30,15 +30,15 @@ Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + Perfor
 - 📷 **Webcam-Sensor** – Zeigt ob Webcam aktiv ist (nur Linux/macOS, auf Windows entfernt)
 - ⚙️ **Einstellungen** – Komplett neu gestaltet: GroupBoxes, Entity-Dropdown, JSON-Editor
 - 🎨 **Dark Mode** – Automatisch (System), Hell oder Dunkel wählbar
-- 🌐 **6 Sprachen** – Deutsch, Englisch, Spanisch, Französisch, Chinesisch, Japanisch (22 neue Keys in v4.2)
+- 🌐 **6 Sprachen** – Deutsch, Englisch, Spanisch, Französisch, Chinesisch, Japanisch (22 neue Keys in v4.2, 24 Erklärungs-Keys in v5.0)
 - 🔌 **mobile_app Protokoll** – identisch zur Handy-App, keine Extra-Konfiguration in HA nötig
 - 🔄 **Auto-Update** von GitHub Releases
 - 📌 **System Tray** – läuft minimiert im Hintergrund
-- 🛡️ **Kein Kernel-Treiber** – keine Defender-Warnung, kein WinRing0, keine Admin-Rechte für Grund-Sensoren
+- 🛡️ **Admin-Rechte** – App startet automatisch als Administrator (für CPU/GPU-Temperatur), Autostart via Task Scheduler mit höchsten Privilegien
 
-## MQTT (v4.3)
+## MQTT (v5.0)
 
-HA DeskLink v4.3 bringt **optionale MQTT-Unterstützung** für erweiterte Features:
+HA DeskLink v5.0 bringt **optionale MQTT-Unterstützung** für erweiterte Features:
 
 - 🔊 **Media Player Entity** – Dein PC erscheint als Media Player in Home Assistant mit now-playing Info, Play/Pause und Lautstärke-Regelung
 - 📡 **PC Status Binary Sensor** – Sofortige Online/Offline-Erkennung via Last Will Testament (LWT)
@@ -56,7 +56,7 @@ MQTT ist **optional** – HA DeskLink funktioniert auch ohne MQTT wie gewohnt we
 - **Keine Defender-Warnung mehr!** – Ab v4.0: komplett treiberlos, kein WinRing0
 
 ## Installation
-1. Neueste `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/FKirchweger/ha-desklink-dotnet/releases/latest) herunterladen
+1. Neueste `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest) herunterladen
 2. Die `HA_DeskLink_Setup_x.x.x.exe` herunterladen, dann im Download-Ordner **Rechtsklick → „Als Administrator ausführen“** wählen. ⚠️ Ein normaler Doppelklick oder das Warten auf die UAC-Anfrage führt zu einer Fehlermeldung – bitte direkt per Rechtsklick als Administrator starten.
 3. HA URL + Long-Lived Token eingeben
 4. Fertig! 🎉
@@ -261,7 +261,7 @@ iscc installer.iss
 | Config | System.Text.Json |
 
 ## v1.x (Python)
-Die Python-Version ist abgeschlossen und archiviert: [ha-desklink](https://github.com/FKirchweger/ha-desklink)
+Die Python-Version ist abgeschlossen und archiviert: [ha-desklink](https://github.com/TechFlipsi/ha-desklink)
 
 ## 📐 Versionierung
 Ab v2.2.1 gelten **plattformunabhängige Versionsnummern**:
@@ -295,8 +295,8 @@ Es gibt jetzt eine macOS-Version von HA DeskLink! 🎉 Siehe [ha-desklink-mac](h
 
 | Modell | Rolle |
 |---|---|
-| **GLM-5.1** | Hauptmodell |
+| **GLM-5.2** | Hauptmodell |
 | **DeepSeek V4 Pro** | Sub-Agenten |
 
 ### Erstellung
-Dieses Projekt wurde unter Verwendung von KI-Unterstützung erstellt. Der gesamte Code wurde von **GLM-5.1** (J.A.R.V.I.S. – Hermes Agent) geschrieben und entwickelt – von der Architektur über die Implementierung bis zum Debugging. Für Tests und Audits wurden Sub-Agenten auf Basis von **DeepSeek V4 Pro** eingesetzt. Die englische Dokumentation wurde ebenfalls von der KI aus dem Deutschen ins Englische übersetzt. Die deutsche Dokumentation ist die Originalversion.
+Dieses Projekt wurde unter Verwendung von KI-Unterstützung erstellt. Der gesamte Code wurde von **GLM-5.2** (J.A.R.V.I.S. – Hermes Agent) geschrieben und entwickelt – von der Architektur über die Implementierung bis zum Debugging. Für Tests und Audits wurden Sub-Agenten auf Basis von **DeepSeek V4 Pro** eingesetzt. Die englische Dokumentation wurde ebenfalls von der KI aus dem Deutschen ins Englische übersetzt. Die deutsche Dokumentation ist die Originalversion.
