@@ -1,217 +1,529 @@
-# HA DeskLink – Betriebsanleitung / User Manual
+# HA DeskLink – Umfassende Benutzeranleitung
 
-📝 **Sprache / Language:** [Deutsch → unten](#deutsch) | [English → below](#english)
+**Version 5.0.4** | Windows Companion App für Home Assistant
+
+> 📖 **Diese Anleitung erklärt jede Funktion von HA DeskLink im Detail** – von der Installation über alle Sensoren, Befehle und Einstellungen bis hin zur Fehlerbehebung. Sie richtet sich an neue Benutzer, die HA DeskLink noch nie verwendet haben.
 
 ---
-
-<a id="deutsch"></a>
-
-# 🇩🇪 Deutsch
 
 ## Inhaltsverzeichnis
 
-1. [HASS.Agent vs. HA DeskLink – Vergleich](#hassagent-vs-ha-desklink--vergleich)
-   - [Warum HA DeskLink?](#warum-ha-desklink)
-   - [Funktionen im Vergleich](#funktionen-im-vergleich)
-   - [Architektur](#architektur)
-   - [Was HA DeskLink NICHT kann](#was-ha-desklink-nicht-kann)
-   - [Migration von HASS.Agent](#migration-von-hassagent)
-2. [Installation](#installation)
-3. [Ersteinrichtung](#ersteinrichtung)
-4. [Sensoren](#sensoren)
-5. [Befehle aus Home Assistant](#befehle-aus-home-assistant)
-6. [Actionable Notifications](#actionable-notifications)
-7. [Quick Actions](#quick-actions)
-8. [Screenshot-Funktion](#screenshot-funktion)
-9. [Webcam-Sensor](#webcam-sensor)
-10. [Einstellungen](#einstellungen)
-11. [System Tray & Hintergrundbetrieb](#system-tray--hintergrundbetrieb)
-12. [Auto-Update](#auto-update)
-13. [Problembehebung](#problembehebung)
-14. [Plattform-Vergleich (Windows / Linux / macOS)](#plattform-vergleich-windows--linux--macos)
+1. [Installation & Ersteinrichtung](#1-installation--ersteinrichtung)
+2. [Sensoren](#2-sensoren)
+3. [PC-Befehle aus Home Assistant](#3-pc-befehle-aus-home-assistant)
+4. [Actionable Notifications](#4-actionable-notifications)
+5. [Quick Actions](#5-quick-actions)
+6. [Custom Commands](#6-custom-commands)
+7. [App Launchers](#7-app-launchers)
+8. [Benachrichtigungen](#8-benachrichtigungen)
+9. [WebView2 Dashboard](#9-webview2-dashboard)
+10. [MQTT (optionale Features)](#10-mqtt-optionale-features)
+11. [Auto-Update](#11-auto-update)
+12. [Autostart](#12-autostart)
+13. [Einstellungen](#13-einstellungen)
+14. [Sicherheit](#14-sicherheit)
+15. [Sprachen](#15-sprachen)
+16. [Build & Entwicklung](#16-build--entwicklung)
+17. [Fehlerbehebung](#17-fehlerbehebung)
 
 ---
 
-## HASS.Agent vs. HA DeskLink – Vergleich
+## 1. Installation & Ersteinrichtung
 
-### Warum HA DeskLink?
+### Systemanforderungen
 
-HASS.Agent ist ein großartiges Projekt – aber es erfordert **MQTT** und eine **separate Integration** in Home Assistant. HA DeskLink geht einen anderen Weg: Es nutzt das **mobile_app-Protokoll**, das auch die offizielle Handy-App verwendet. Das bedeutet: **Keine Extra-Integration, kein MQTT-Broker nötig.** Einfach installieren, Token eingeben, fertig.
+- **Windows 10 oder 11** (64-Bit, x64)
+- **Kein .NET Runtime nötig** – alles ist im Installer enthalten (self-contained)
+- **Kein Kernel-Treiber nötig** – HA DeskLink verwendet WMI + PerformanceCounter (treiberlos)
+- **Optional:** WebView2 Runtime (für das eingebettete Dashboard – wird bei Bedarf automatisch heruntergeladen)
 
-### Funktionen im Vergleich
+### Installation
 
-| Funktion | HASS.Agent | HA DeskLink | Hinweis |
-|---|:---:|:---:|---|
-| **Verbindung** | MQTT | WebSocket (mobile_app) | Kein MQTT-Broker nötig |
-| **Integration in HA** | Eigene HACS-Integration nötig | Automatisch (mobile_app) | Erscheint wie ein Handy in HA |
-| **CPU-Temperatur** | ✅ | ✅ | |
-| **CPU-Auslastung** | ✅ | ✅ | |
-| **RAM** | ✅ | ✅ | |
-| **Festplatte** | ✅ | ✅ | Alle Laufwerke |
-| **Akku** | ✅ | ✅ | |
-| **GPU-Temperatur** | ✅ | ✅ (Win/Linux) | macOS: keine öffentliche API |
-| **GPU-Auslastung** | ✅ | ✅ (Win/Linux) | macOS: nur mit sudo |
-| **Lüfter-Drehzahl** | ✅ | ✅ (Win/Linux) | |
-| **WiFi-SSID** | ✅ | ✅ | |
-| **Uptime** | ✅ | ✅ | |
-| **Aktives Fenster** | ✅ | ✅ (Win) | Linux/macOS: begrenzt |
-| **Webcam-Status** | ❌ | ✅ | v3.0+: Sensor ob Kamera aktiv |
-| **Befehle von HA** | ✅ | ✅ | Shutdown, Restart, Lock, etc. |
-| **Screenshot** | ✅ (Snipping Tool) | ✅ (Echt + Upload) | Direkt als HA-Event |
-| **Benachrichtigungen** | ✅ | ✅ | |
-| **Actionable Notifications** | ✅ | ✅ | v3.0+: Buttons in Notifications |
-| **Quick Actions** | ✅ | ✅ | v3.0+: Hotkey + Popup |
-| **Media Player** | ✅ | ❌ | Nicht geplant – WebSocket-only |
-| **Dashboard eingebettet** | ✅ (WebView) | ✅ (Win: WebView2) | Linux/Mac: Browser |
-| **Auto-Update** | ✅ | ✅ | |
-| **System Tray** | ✅ | ✅ (Win) | Linux: Daemon, Mac: Dock |
-| **Einstellungen** | GUI | GUI (Win) / Config (Linux/Mac) | |
-| **Lokalisierung** | Englisch | 6 Sprachen (de, en, es, fr, zh, ja) | |
-| **macOS** | ❌ | ✅ (Community Test) | |
-| **Linux** | ❌ | ✅ | Headless möglich |
-| **Lizenz** | MIT | GPL v3 | HA DeskLink ist Copyleft |
+1. Lade die neueste `HA_DeskLink_Setup_x.x.x.exe` von [GitHub Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest) herunter.
+2. **Wichtig:** Mache einen **Rechtsklick** auf die heruntergeladene `.exe`-Datei und wähle **„Als Administrator ausführen"**.
+   > ⚠️ Ein normaler Doppelklick oder das Warten auf die UAC-Anfrage führt zu einer Fehlermeldung – bitte direkt per Rechtsklick als Administrator starten.
+3. Der Installer (InnoSetup) installiert HA DeskLink nach `C:\Program Files\HA DeskLink\`.
+   - Der Installer benötigt **Administrator-Rechte** (`PrivilegesRequired=admin` in `installer.iss`).
+   - Es wird ein Start-Menü-Eintrag und eine Desktop-Verknüpfung erstellt.
+4. Nach der Installation startet HA DeskLink automatisch.
 
-### Architektur
+### Ersteinrichtung (Setup-Wizard)
 
-**HASS.Agent:** `App ←→ MQTT-Broker ←→ HA (+ HACS-Integration)`
+Beim ersten Start erscheint der **Setup-Wizard** (wenn noch keine `registration.json` existiert):
 
-**HA DeskLink:** `App ←→ Home Assistant (WebSocket + Webhook)` – keine Extra-Software nötig.
+#### Schritt 1: Home Assistant verbinden
 
-### Was HA DeskLink NICHT kann
+| Feld | Beschreibung | Beispiel |
+|---|---|---|
+| **HA URL** | Die URL deiner Home Assistant Instanz | `https://homeassistant.local:8123` |
+| **Long-Lived Token** | Ein langlebiger Access-Token aus HA | (siehe unten) |
+| **SSL-Zertifikat prüfen** | Checkbox, ob SSL-Zertifikate validiert werden | Bei self-signed Zertifikaten deaktivieren |
 
-| Feature | Warum nicht |
-|---|---|
-| **Media Player** | Würde eigene HA-Integration erfordern. mobile_app bietet keine Media-Player-Entity. |
-| **MQTT** | Bewusst weggelassen. mobile_app ist einfacher. |
-| **WebView auf Linux/macOS** | WebView2 nicht stabil verfügbar. Dashboard öffnet im Browser. |
+**Token erstellen in Home Assistant:**
+1. Öffne Home Assistant im Browser
+2. Klicke unten links auf dein **Profil**
+3. Gehe zu **Sicherheit** → **Long-Lived Access Tokens**
+4. Klicke **Token erstellen**, gib einen Namen ein (z.B. „HA DeskLink")
+5. Kopiere den Token und füge ihn in den Setup-Wizard ein
 
-### Migration von HASS.Agent
+Klicke **„Verbinden"**. HA DeskLink registriert sich über das `mobile_app`-Protokoll bei Home Assistant (genau wie die Handy-App – keine Extra-Integration nötig!).
 
-1. HA DeskLink installieren
-2. HA-URL + Long-Lived Token eingeben
-3. Gerät registriert sich automatisch in HA
-4. HASS.Agent deinstallieren – alte Entities in HA bleiben bis man sie löscht
-5. Automatisierungen auf `sensor.ha_desklink_*` anpassen
+#### Schritt 2: MQTT (optional)
 
----
+Nach erfolgreicher HA-Verbindung erscheint der MQTT-Schritt:
 
-## Installation
+- **Ohne MQTT fortfahren:** HA DeskLink funktioniert vollständig ohne MQTT (Sensoren, Befehle, Benachrichtigungen, Quick Actions).
+- **Mit MQTT:** Ermöglicht Media Player, schnellere Sensor-Updates und PC Status-Erkennung. Gib Broker, Port, Benutzername, Passwort und SSL-Option ein.
 
-### Windows
-1. `HA_DeskLink_Setup_x.x.x.exe` von [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest) herunterladen
-2. **Rechtsklick → „Als Administrator ausführen"** ⚠️ Normaler Doppelklick funktioniert nicht!
-3. Einrichtung folgt automatisch
+| Feld | Beschreibung | Standardwert |
+|---|---|---|
+| **Broker** | MQTT-Broker Hostname/IP | (aus HA URL abgeleitet) |
+| **Port** | MQTT-Port | 1883 |
+| **Benutzername** | Optional, für Authentifizierung | (leer) |
+| **Passwort** | Optional, für Authentifizierung | (leer) |
+| **SSL/TLS verwenden** | TLS-Verschlüsselung | Aus |
 
-### Linux
-1. `ha-desklink-linux-x64.tar.gz` von [Releases](https://github.com/TechFlipsi/ha-desklink-linux/releases/latest) herunterladen
-2. `tar xzf ha-desklink-linux-x64.tar.gz`
-3. `./ha-desklink --setup`
-4. Als Service: `sudo cp ha-desklink.service /etc/systemd/system/ && sudo systemctl enable --now ha-desklink`
+Klicke **„Testen"** um die Verbindung zu prüfen, dann **„Übernehmen & fortfahren"**.
 
-### macOS
-1. `.dmg` von [Releases](https://github.com/TechFlipsi/ha-desklink-mac/releases/latest) herunterladen
-2. App in Programme-Ordner ziehen
-3. Beim ersten Start: HA URL + Token eingeben
+> 💡 MQTT kann auch später in den Einstellungen konfiguriert werden.
 
-> ⚠️ macOS = Community Test – nicht vom Entwickler getestet
+### Nach der Einrichtung
+
+Nach dem Setup läuft HA DeskLink im **System Tray** (unten rechts in der Taskleiste). Sensoren erscheinen automatisch in Home Assistant unter **Einstellungen → Geräte & Dienste → mobile_app**.
 
 ---
 
-## Ersteinrichtung
+## 2. Sensoren
 
-Du brauchst:
-1. **HA URL** – z.B. `https://homeassistant.local:8123`
-2. **Long-Lived Token** – HA → Profil → Sicherheit → Long-Lived Access Tokens → Token erstellen
+HA DeskLink sammelt umfangreiche System-Sensordaten und überträgt sie an Home Assistant. Alle Sensoren erscheinen mit dem Präfix `sensor.ha_desklink_` bzw. `binary_sensor.ha_desklink_` in HA.
 
-Token wird verschlüsselt gespeichert (Windows: DPAPI, macOS: Keychain, Linux: config.json).
+> 📌 **Entity-Namen-Schema:** Die Entity-IDs folgen dem Muster `sensor.ha_desklink_<sensor_id>` und `binary_sensor.ha_desklink_<sensor_id>`. Beispiel: `sensor.ha_desklink_cpu_percent` für die CPU-Auslastung.
 
----
+### Sensoren im Überblick
 
-## Sensoren
+#### CPU-Sensoren
 
-Alle Sensoren erscheinen als `sensor.ha_desklink_*` in Home Assistant.
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_cpu_percent` | CPU Usage | % | CPU-Auslastung (WMI Win32_Processor.LoadPercentage, Fallback: PerformanceCounter) | 0.0 – 100.0 |
+| `sensor.ha_desklink_cpu_temperature` | CPU Temperature | °C | CPU-Temperatur (WMI MSAcpi_ThermalZoneTemperature, **benötigt Admin-Rechte**) | 20.0 – 100.0+ |
+| `sensor.ha_desklink_cpu_clock` | CPU Clock | MHz | Aktuelle CPU-Taktrate (WMI CurrentClockSpeed, Fallback: MaxClockSpeed × PerformanceCounter) | z.B. 3400.0 |
 
-| Sensor | Win | Linux | Mac | Beschreibung |
-|---|:---:|:---:|:---:|---|
-| `cpu_usage` | ✅ | ✅ | ✅ | CPU-Auslastung % |
-| `cpu_temp` | ✅ | ✅ | ✅* | CPU-Temperatur °C |
-| `cpu_clock` | ✅ | ✅ | ❌ | CPU-Taktrate MHz |
-| `memory` | ✅ | ✅ | ✅ | RAM-Auslastung % |
-| `memory_available` | ✅ | ✅ | ✅ | RAM verfügbar GB |
-| `battery` | ✅ | ✅ | ✅ | Akku % |
-| `disk_usage` | ✅ | ✅ | ✅ | Festplatte % |
-| `uptime` | ✅ | ✅ | ✅ | Laufzeit |
-| `ip_address` | ✅ | ✅ | ✅ | IP-Adresse |
-| `wifi_ssid` | ✅ | ✅ | ✅ | WiFi-Name |
-| `process_count` | ✅ | ✅ | ✅ | Anzahl Prozesse |
-| `gpu_temp` | ✅ | ✅ | ❌ | GPU-Temperatur |
-| `gpu_load` | ✅ | ✅ | ❌ | GPU-Auslastung |
-| `fan_speed` | ✅ | ✅ | ❌ | Lüfter RPM |
-| `active_window` | ✅ | ❌ | ❌ | Aktives Fenster |
-| `webcam_active` | ❌ | ✅ | ✅ | Webcam aktiv on/off (Windows: entfernt, unzuverlässig) |
-| `brightness` | ❌ | ❌ | ✅ | Bildschirmhelligkeit % |
-| `keyboard_backlight` | ❌ | ❌ | ✅ | Tastaturbeleuchtung % |
-| `battery_cycle_count` | ❌ | ❌ | ✅ | Akku-Ladezyklen |
-| `power_adapter` | ❌ | ❌ | ✅ | Netzteil verbunden |
-| `network_upload/download` | ✅ | ✅ | ❌ | Netzwerkgeschwindigkeit |
+> ⚠️ **CPU-Temperatur** benötigt Administrator-Rechte. Ohne Admin-Rechte erscheint dieser Sensor nicht.
 
-> *macOS CPU-Temp: braucht `brew install osx-cpu-temp` oder sudo
+#### GPU-Sensoren
 
----
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_gpu_load` | GPU Load | % | GPU-Auslastung (PerformanceCounter „GPU Engine", alle Vendor) | 0.0 – 100.0 |
+| `sensor.ha_desklink_gpu_temperature` | GPU Temperature | °C | GPU-Temperatur (NVIDIA: nvidia-smi, AMD: WMI/ADLX, Intel: WMI) | 20.0 – 100.0+ |
+| `sensor.ha_desklink_gpu_memory_used` | GPU Memory Used | MB | GPU VRAM verwendet (NVIDIA: nvidia-smi, AMD: rocm-smi) | z.B. 2048.0 |
+| `sensor.ha_desklink_gpu_memory_total` | GPU Memory Total | MB | GPU VRAM gesamt | z.B. 8192.0 |
+| `sensor.ha_desklink_gpu_fan_speed` | GPU Fan Speed | % | GPU-Lüftergeschwindigkeit (nvidia-smi, nur NVIDIA) | 0 – 100 |
 
-## Befehle aus Home Assistant
+> 💡 GPU-Sensoren erscheinen nur, wenn eine GPU vorhanden ist. Bei mehreren GPUs wird die erste erkannte GPU verwendet.
 
-Befehle werden über **Benachrichtigungen** gesendet – wie bei der Handy-App.
+#### Arbeitsspeicher (RAM)
 
-| Befehl | Win | Linux | Mac | Wirkung |
-|---|:---:|:---:|:---:|---|
-| `shutdown` | ✅ | ✅ | ✅ | Herunterfahren |
-| `restart` | ✅ | ✅ | ✅ | Neustarten |
-| `hibernate` | ✅ | ✅ | ✅ | Ruhezustand |
-| `suspend` | ❌ | ✅ | ❌ | Bereitschaft (Linux) |
-| `lock` | ✅ | ✅ | ✅ | Bildschirm sperren |
-| `mute` | ✅ | ✅ | ✅ | Ton stumm |
-| `volume_up` | ✅ | ✅ | ✅ | Lauter +10% |
-| `volume_down` | ✅ | ✅ | ✅ | Leiser -10% |
-| `monitor_on` | ✅ | ✅ | ✅ | Monitor an |
-| `monitor_off` | ✅ | ✅ | ✅ | Monitor aus |
-| `screenshot` | ✅ | ✅ | ✅ | Screenshot + Upload |
-| `screenshot_save` | ✅ | ✅ | ✅ | Screenshot lokal + Upload |
-| `snipping_tool` | ✅ | ❌ | ❌ | Windows Snipping Tool |
-| `brightness_up` | ❌ | ❌ | ✅ | Helligkeit +10% |
-| `brightness_down` | ❌ | ❌ | ✅ | Helligkeit -10% |
-| `brightness:N` | ❌ | ❌ | ✅ | Helligkeit auf N% |
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_memory_percent` | Memory Usage | % | RAM-Auslastung (WMI Win32_OperatingSystem) | 0.0 – 100.0 |
+| `sensor.ha_desklink_memory_used` | Memory Used | GB | RAM verwendet | z.B. 12.50 |
+| `sensor.ha_desklink_memory_free` | Memory Free | GB | RAM frei | z.B. 3.50 |
+| `sensor.ha_desklink_memory_total` | Memory Total | GB | RAM gesamt (statisch) | z.B. 16.00 |
 
-> ⚠️ Helligkeits-Befehle funktionieren in der Regel **nur auf Laptops** mit integriertem Display. An Desktop-PCs mit externen Monitoren werden die Befehle ignoriert.
+#### Festplatten / Laufwerke
 
-**Beispiel:**
+Für **jedes** gefundene Festplatten-Laufwerk (C:, D:, E:, etc.) werden vier Sensoren erstellt:
+
+| Entity-ID (Beispiel C:) | Name | Einheit | Beschreibung |
+|---|---|---|---|
+| `sensor.ha_desklink_disk_c_percent` | Disk C: Usage | % | Belegung in % |
+| `sensor.ha_desklink_disk_c_free` | Disk C: Free | GB | Freier Speicher |
+| `sensor.ha_desklink_disk_c_used` | Disk C: Used | GB | Verwendeter Speicher |
+| `sensor.ha_desklink_disk_c_total` | Disk C: Total | GB | Gesamtkapazität |
+
+> 💡 Weitere Laufwerke (D:, E:, etc.) werden automatisch erkannt. Der Laufwerksbuchstabe wird klein geschrieben und der Doppelpunkt entfernt: `disk_d_percent`, `disk_e_free`, etc.
+
+#### System & Netzwerk
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_uptime` | Uptime | h | PC-Laufzeit in Stunden (TickCount64) | z.B. 4.5 |
+| `sensor.ha_desklink_last_activity` | Last Activity | min | Minuten seit letzter Maus/Tastatur-Eingabe | z.B. 2.3 |
+| `sensor.ha_desklink_idle_time` | Idle Time | s | Sekunden seit letzter Eingabe (GetLastInputInfo) | z.B. 138.5 |
+| `sensor.ha_desklink_ip_address` | IP Address | – | Aktuelle IPv4-Adresse (WMI) | z.B. 192.168.1.100 |
+| `sensor.ha_desklink_process_count` | Running Processes | – | Anzahl laufender Prozesse | z.B. 234 |
+| `sensor.ha_desklink_page_file_percent` | Page File Usage | % | Auslagerungsdatei-Auslastung (WMI Win32_PageFileUsage) | z.B. 45.3 |
+| `sensor.ha_desklink_network_upload` | Upload Speed | KB/s | Upload-Geschwindigkeit (PerformanceCounter, erste nicht-Loopback NIC) | z.B. 125.5 |
+| `sensor.ha_desklink_network_download` | Download Speed | KB/s | Download-Geschwindigkeit | z.B. 2300.8 |
+| `sensor.ha_desklink_bluetooth_devices_connected` | Bluetooth Devices Connected | – | Anzahl verbundener Bluetooth-Geräte (PowerShell Get-PnpDevice) | z.B. 3 |
+
+#### Binäre Sensoren (on/off)
+
+| Entity-ID | Name | Beschreibung | Mögliche Werte |
+|---|---|---|---|
+| `binary_sensor.ha_desklink_connectivity` | Connectivity | Ping zu HA-Host (Fallback: 8.8.8.8) | `on` / `off` |
+| `binary_sensor.ha_desklink_audio_mute` | Audio Mute | Stummschaltung des System-Audio (IAudioEndpointVolume COM) | `on` / `off` |
+| `binary_sensor.ha_desklink_mic_active` | Microphone Active | Mikrofon in Benutzung (AudioSessionManager COM) | `on` / `off` |
+| `binary_sensor.ha_desklink_webcam_active` | Webcam Active | Webcam aktiv (WMI Win32_PnPEntity Image/Camera) | `on` / `off` |
+| `binary_sensor.ha_desklink_presence` | Presence | Präsenz: on wenn idle_time < 300s UND connectivity = on | `on` / `off` |
+| `binary_sensor.ha_desklink_pc_status` | PC Status | on solange App läuft (beim Beenden: off) | `on` / `off` |
+
+#### Audio & Helligkeit
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_audio_volume` | Audio Volume | % | System-Lautstärke (IAudioEndpointVolume COM) | 0 – 100 |
+| `sensor.ha_desklink_brightness` | Brightness | % | Bildschirmhelligkeit (WMI WmiMonitorBrightness, nur Laptops) | 0 – 100 |
+
+#### WLAN
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_wifi_ssid` | WiFi Network | – | Verbundenes WLAN-Netzwerk (WMI Win32_NetworkConnection) | z.B. „MeinWLAN" |
+| `sensor.ha_desklink_wifi_signal` | WiFi Signal | % | WLAN-Signalstärke (netsh wlan show interfaces) | 0 – 100 |
+
+#### Bildschirm & Fenster
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_active_window` | Active Window | – | Titel des aktiven Fensters (GetForegroundWindow) | z.B. „Google Chrome" |
+| `sensor.ha_desklink_fullscreen` | Fullscreen | – | Vollbild-Modus erkannt (Fenstergröße vs. Monitor) | `on` / `off` |
+| `sensor.ha_desklink_monitor_layout` | Monitor Layout | – | Monitor-Konfiguration | „1", „1+2", „1+2+3" |
+
+#### Akku (nur Laptops)
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_battery` | Battery | % | Akkustand (WMI Win32_Battery) | 0 – 100 |
+
+#### Lüfter
+
+| Entity-ID | Name | Einheit | Beschreibung | Mögliche Werte |
+|---|---|---|---|---|
+| `sensor.ha_desklink_gpu_fan_speed` | GPU Fan Speed | % | GPU-Lüfter (nvidia-smi, nur NVIDIA) | 0 – 100 |
+| `sensor.ha_desklink_fan_*` | Fan: * | RPM | System-Lüfter (WMI Win32_Fan, selten verfügbar) | z.B. 1500 |
+
+#### App-Version
+
+| Entity-ID | Name | Beschreibung |
+|---|---|---|
+| `sensor.ha_desklink_ha_desklink_version` | HA DeskLink Version | Aktuelle App-Version (Assembly.Version) |
+
+### Sensoren in HA verwenden
+
+#### Beispiel: Dashboard-Karte für CPU-Temperatur
+
 ```yaml
-service: notify.mobile_app_ha_desklink
-data:
-  title: "Gute Nacht!"
-  message: "PC wird heruntergefahren."
-  data:
-    command: "shutdown"
+type: gauge
+entity: sensor.ha_desklink_cpu_temperature
+name: CPU Temperatur
+unit: °C
+min: 20
+max: 100
+severity:
+  green: 0
+  yellow: 70
+  red: 85
+```
+
+#### Beispiel: Automatisierung bei hoher CPU-Temperatur
+
+```yaml
+automation:
+  - alias: "CPU-Temperatur Warnung"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.ha_desklink_cpu_temperature
+        above: 85
+        for:
+          minutes: 5
+    action:
+      - service: notify.mobile_app_ha_desklink
+        data:
+          title: "⚠️ CPU zu heiß!"
+          message: "Die CPU-Temperatur beträgt {{ states('sensor.ha_desklink_cpu_temperature') }}°C"
+```
+
+#### Beispiel: PC nur herunterfahren, wenn niemand am PC ist
+
+```yaml
+automation:
+  - alias: "PC bei Inaktivität herunterfahren"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.ha_desklink_idle_time
+        above: 1800
+        for:
+          minutes: 5
+    condition:
+      - condition: state
+        entity_id: binary_sensor.ha_desklink_connectivity
+        state: "on"
+    action:
+      - service: notify.mobile_app_ha_desklink
+        data:
+          title: "PC herunterfahren"
+          message: "PC wurde 30+ Minuten nicht benutzt."
+          data:
+            command: "shutdown"
 ```
 
 ---
 
-## Actionable Notifications
+## 3. PC-Befehle aus Home Assistant
 
-Ab v3.0: Benachrichtigungen mit **Aktions-Buttons**.
+HA DeskLink empfängt Befehle über **Benachrichtigungen** – genau wie die Handy-App. Es wird keine Extra-Integration in HA benötigt. Befehle werden im `data`-Feld der Notification übergeben.
 
-| Plattform | Darstellung |
-|---|---|
-| Windows | WinForms-Dialog mit Buttons |
-| Linux | notify-send + automatische `command_on_action` |
-| macOS | osascript + automatische `command_on_action` |
+### Alle verfügbaren Befehle
 
-**Beispiel:**
+| Befehl | Schreibweise | Wirkung |
+|---|---|---|
+| Herunterfahren | `shutdown` | Fährt den PC in 30 Sekunden herunter (`shutdown /s /t 30`) |
+| Neustarten | `restart` oder `reboot` | Startet den PC in 30 Sekunden neu (`shutdown /r /t 30`) |
+| Ruhezustand | `hibernate` | Versetzt den PC in den Ruhezustand (SetSuspendState) |
+| Energie sparen | `sleep` | Versetzt den PC in den Energiesparmodus (SetSuspendState) |
+| PC sperren | `lock_screen` oder `lock` | Sperrt den Windows-Bildschirm (LockWorkStation) |
+| Lautstärke stumm | `volume_mute` oder `mute` | Schaltet den Ton stumm/entstummt (ToggleMute) |
+| Lautstärke lauter | `volume_up` | Erhöht die Lautstärke um ~10% (5× VK_VOLUME_UP) |
+| Lautstärke leiser | `volume_down` | Verringert die Lautstärke um ~10% (5× VK_VOLUME_DOWN) |
+| Media Play/Pause | `media_play_pause` | Play/Pause für Medienwiedergabe (VK_MEDIA_PLAY_PAUSE) |
+| Media Nächster | `media_next` | Nächster Titel (VK_MEDIA_NEXT_TRACK) |
+| Media Vorheriger | `media_previous` | Vorheriger Titel (VK_MEDIA_PREV_TRACK) |
+| Helligkeit rauf | `brightness_up` | Erhöht Bildschirmhelligkeit um ~10% (nur Laptops) |
+| Helligkeit runter | `brightness_down` | Verringert Bildschirmhelligkeit um ~10% (nur Laptops) |
+| Helligkeit setzen | `brightness:50` | Setzt Helligkeit auf Wert 0-100 (nur Laptops, WmiSetBrightness) |
+| Monitor an | `monitor_on` | Schaltet den Monitor an (SC_MONITORPOWER -1) |
+| Monitor aus | `monitor_off` | Schaltet den Monitor aus (SC_MONITORPOWER 2) |
+| Bildschirmfoto | `screenshot` | Screenshot + Upload als HA-Event (CopyFromScreen → PNG → Base64) |
+| Bildschirmfoto speichern | `screenshot_save` | Wie screenshot, speichert zusätzlich lokal |
+| Snipping Tool | `snipping_tool` | Öffnet Windows Snipping Tool (Win+Shift+S) |
+| Text-to-Speech | `tts:Hallo Welt` | Spricht den Text über Windows SAPI |
+| App starten | `launch:spotify` | Startet eine konfigurierte App (siehe [App Launchers](#7-app-launchers)) |
+| Custom Command | (eigener Name) | Führt ein konfiguriertes Skript aus (siehe [Custom Commands](#6-custom-commands)) |
+| Nachricht | *(kein command)* | Zeigt nur eine Benachrichtigung an |
+
+> ⚠️ **Helligkeits-Befehle** (`brightness_up`, `brightness_down`, `brightness:XX`) funktionieren **nur auf Laptops** mit integriertem Display. An Desktop-PCs mit externen Monitoren werden die Befehle ignoriert.
+
+### YAML-Beispiele
+
+#### Herunterfahren
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "PC herunterfahren"
+  message: "Der PC wird in 30 Sekunden heruntergefahren"
+  data:
+    command: "shutdown"
+```
+
+#### Neustarten
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "PC neustarten"
+  message: "Der PC wird neu gestartet"
+  data:
+    command: "restart"
+```
+
+#### Ruhezustand
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Ruhezustand"
+  message: "PC geht in den Ruhezustand"
+  data:
+    command: "hibernate"
+```
+
+#### PC sperren
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "PC sperren"
+  message: "Der PC wird gesperrt"
+  data:
+    command: "lock_screen"
+```
+
+#### Lautstärke stumm schalten
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Lautstärke"
+  message: "Ton stumm geschaltet"
+  data:
+    command: "volume_mute"
+```
+
+#### Lauter
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Lauter"
+  data:
+    command: "volume_up"
+```
+
+#### Mediensteuerung – Play/Pause
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Play/Pause"
+  data:
+    command: "media_play_pause"
+```
+
+#### Helligkeit setzen (nur Laptops)
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Helligkeit auf 50%"
+  data:
+    command: "brightness:50"
+```
+
+#### Monitor ausschalten
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Monitor aus"
+  data:
+    command: "monitor_off"
+```
+
+#### Screenshot machen
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Screenshot"
+  message: "Bildschirmfoto wird erstellt..."
+  data:
+    command: "screenshot"
+```
+
+> 💡 Der Screenshot wird als Event `ha_desklink_screenshot` mit Base64-Bild an HA gesendet. In HA kannst du das Event abfangen und das Bild speichern oder anzeigen.
+
+#### Text-to-Speech
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Sprich"
+  data:
+    command: "tts:Die Waschmaschine ist fertig!"
+```
+
+#### Einfache Benachrichtigung (ohne Befehl)
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Erinnerung"
+  message: "Müll rausbringen nicht vergessen!"
+```
+
+### Automatisierung in HA
+
+#### PC um 22 Uhr herunterfahren (nur wenn PC online)
+
+```yaml
+automation:
+  - alias: "PC um 22 Uhr herunterfahren"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    condition:
+      - condition: state
+        entity_id: binary_sensor.ha_desklink_pc_status
+        state: "on"
+    action:
+      - service: notify.mobile_app_ha_desklink
+        data:
+          title: "Gute Nacht!"
+          message: "Der PC wird jetzt heruntergefahren."
+          data:
+            command: "shutdown"
+```
+
+#### PC bei Inaktivität in den Energiesparmodus
+
+```yaml
+automation:
+  - alias: "PC bei Inaktivität schlafen legen"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.ha_desklink_idle_time
+        above: 1800
+    action:
+      - service: notify.mobile_app_ha_desklink
+        data:
+          title: "Energiesparen"
+          message: "PC wird in den Energiesparmodus versetzt."
+          data:
+            command: "sleep"
+```
+
+### Dashboard-Button in HA
+
+```yaml
+type: button
+name: "PC herunterfahren"
+tap_action:
+  action: call-service
+  service: notify.mobile_app_ha_desklink
+  service_data:
+    title: "PC herunterfahren"
+    message: "Wird heruntergefahren..."
+    data:
+      command: "shutdown"
+```
+
+```yaml
+type: button
+name: "PC sperren"
+icon: mdi:lock
+tap_action:
+  action: call-service
+  service: notify.mobile_app_ha_desklink
+  service_data:
+    message: "PC wird gesperrt"
+    data:
+      command: "lock_screen"
+```
+
+---
+
+## 4. Actionable Notifications
+
+Ab Version 3.0 unterstützt HA DeskLink **Actionable Notifications** – Benachrichtigungen mit interaktiven Aktions-Buttons. Auf Windows wird ein modernes WinForms-Dialog mit abgerundeten Ecken angezeigt.
+
+### Funktionsweise
+
+- Die Benachrichtigung enthält eine Liste von `actions` (Buttons)
+- Jeder Button hat einen `action`-Key, einen `title` (Beschriftung) und optional einen `command`
+- Beim Klick auf einen Button wird der zugehörige `command` ausgeführt
+- `command_on_action` ist ein Fallback-Befehl, der ausgeführt wird, wenn ein Button keinen eigenen `command` hat
+
+### YAML-Beispiel: PC herunterfahren mit Bestätigung
+
 ```yaml
 service: notify.mobile_app_ha_desklink
 data:
   title: "PC herunterfahren?"
-  message: "Soll der PC heruntergefahren werden?"
+  message: "Soll der PC wirklich heruntergefahren werden?"
   data:
     actions:
       - action: SHUTDOWN
@@ -222,548 +534,898 @@ data:
     command_on_action: shutdown
 ```
 
-- `actions`: Liste der Buttons
-- `command`: Befehl bei Button-Klick
-- `command_on_action`: Fallback-Befehl (automatisch auf Linux/macOS)
+### YAML-Beispiel: Mediensteuerung mit Buttons
 
----
-
-## Quick Actions
-
-Ab v3.0: **HA-Entities per Hotkey/Button umschalten**.
-
-**Konfiguration:**
-- **Windows:** Einstellungen → Quick Actions → Entity-IDs hinzufügen
-  - Quick Actions Hotkey: Std. Ctrl+Shift+H
-  - Dashboard Hotkey: Std. Ctrl+Shift+D
-  - Einstellungen Hotkey: Std. Ctrl+Shift+S
-  - Alle Hotkeys konfigurierbar (Modifier + Taste)
-- **Linux/macOS:** `config.json` → `QuickActions`-Feld:
-```json
-{"QuickActions": "[{\"entityId\":\"light.wohnzimmer\",\"name\":\"Wohnzimmer\"}]"}
-```
-
-| Plattform | Aufruf |
-|---|---|
-| Windows | Konfigurierbar (Std: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Einstellungen) oder Tray-Icon |
-| Linux | Dashboard-Button ⚡ |
-| macOS | Dashboard-Button ⚡ |
-
-Beim Klick wird `homeassistant.toggle` an HA gesendet.
-
----
-
-## Screenshot-Funktion
-
-| Befehl | Wirkung |
-|---|---|
-| `screenshot` | Screenshot + HA-Event Upload |
-| `screenshot_save` | Screenshot lokal speichern + HA-Event Upload |
-
-| Plattform | Methode |
-|---|---|
-| Windows | Graphics.CopyFromScreen → PNG → Base64 |
-| Linux | gnome-screenshot → scrot → grim |
-| macOS | screencapture -x |
-
----
-
-## Webcam-Sensor
-
-Sensor `sensor.ha_desklink_webcam_active` – `on` wenn Kamera aktiv, `off` wenn nicht.
-
-> ⚠️ **Windows:** Dieser Sensor wurde in v3.0.4 entfernt, da WMI die Webcam-Erkennung nicht zuverlässig unterstützt. Nur auf Linux und macOS verfügbar.
-
-| Plattform | Erkennung |
-|---|---|
-| Windows | WMI Win32_PnPEntity Camera |
-| Linux | /dev/video* + /proc/*/fd/* |
-| macOS | ioreg + lsof |
-
----
-
-## Einstellungen
-
-| Plattform | Methode |
-|---|---|
-| Windows | Tray-Icon → Rechtsklick → Einstellungen (oder Ctrl+Shift+S) |
-| Linux | Dashboard → ⚙️ Einrichtung oder config.json |
-| macOS | Dashboard → ⚙️ Einrichtung |
-
----
-
-## System Tray & Hintergrundbetrieb
-
-| Plattform | Verhalten |
-|---|---|
-| Windows | Minimiert zum System Tray. Konfigurierbare Hotkeys (Std: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Einstellungen). |
-| Linux | systemd-Daemon. Dashboard optional. |
-| macOS | Reguläre App. Dashboard im Browser. |
-
----
-
-## Auto-Update
-
-| Plattform | Wann | Methode |
-|---|---|---|
-| Windows | Beim Start | Download + Installer |
-| Linux | Alle 2h | Download + tar.gz |
-| macOS | Beim Start | Download + DMG-Link |
-
----
-
-## Problembehebung
-
-| Problem | Lösung |
-|---|---|
-| Verbindung klappt nicht | HA URL prüfen, Token prüfen, Firewall Port 8123 |
-| Sensoren fehlen in HA | 30-60s warten, Gerät in HA öffnen, Neustart |
-| CPU-Temperatur leer (Win) | Als Administrator starten |
-| Webcam immer "off" | Kamera vorhanden? Linux: `ls /dev/video*` |
-| SSL-Fehler | SSL-Prüfung in Einstellungen deaktivieren |
-| **Windows Defender: VulnerableDriver** | Siehe unten ⚠️ |
-
-### ⚠️ Windows Defender – „Vulnerable Driver: WinNT/Winring0"
-
-Windows Defender meldet möglicherweise **VulnerableDriver:WinNT/Winring0** für die Datei `HA_DeskLink.sys`.
-
-**Das ist ein Fehlalarm!** Die Erklärung:
-
-- HA DeskLink nutzt **WMI + PerformanceCounter** für Hardware-Sensoren (CPU-Temperatur, GPU-Temperatur, Lüfter-Drehzahl) – komplett treiberlos, kein WinRing0
-- Diese Bibliothek verwendet den **WinRing0-Treiber**, um Hardware-Sensoren auf Kernel-Ebene auszulesen
-- WinRing0 ist ein **legitimer, Open-Source-Treiber** – er braucht Kernel-Zugriff, um Temperatursensoren zu lesen
-- Microsoft Defender flagt alle Kernel-Treiber als „potenziell gefährlich", auch wenn sie harmlos sind
-
-**So lässt du den Treiber zu:**
-
-1. Windows Defender öffnen → **Schutzverlauf**
-2. Den Eintrag „VulnerableDriver:WinNT/Winring0" suchen
-3. Auf **Aktionen** → **Zulassen** klicken
-
-Oder alternativ:
-
-1. Windows-Einstellungen → **Datenschutz & Sicherheit** → **Windows-Sicherheit**
-2. **Viren- & Bedrohungsschutz** → **Schutzverlauf**
-3. Den Treiber-Eintrag → **Zulassen**
-
-**Ohne Admin-Rechte** funktioniert HA DeskLink auch – dann fehlen nur CPU/GPU-Temperatur und Lüfter-Drehzahl. Alle anderen Sensoren und Befehle funktionieren normal.
-
----
-
-## Plattform-Vergleich (Windows / Linux / macOS)
-
-| Feature | Windows | Linux | macOS | Erklärung |
-|---|:---:|:---:|:---:|---|
-| **GUI** | WinForms | Avalonia | Avalonia | |
-| **Embedded Dashboard** | ✅ WebView2 | ❌ Browser | ❌ Browser | WebView2 nicht stabil auf Linux/Mac |
-| **System Tray** | ✅ | ❌ Daemon | ❌ Dock | |
-| **Quick Actions Hotkey** | ✅ Konfigurierbar | ❌ Button | ❌ Button | Std: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Einstellungen |
-| **Screenshot-Methode** | CopyFromScreen | gnome-screenshot | screencapture | |
-| **Webcam-Erkennung** | WMI | /dev/video* | ioreg/lsof | |
-| **Token-Speicher** | DPAPI | config.json | Keychain | |
-| **Admin nötig** | Ja (HW-Sensoren) | Nein | Nein | |
-| **Daemon-Modus** | ❌ | ✅ systemd | ❌ | |
-| **Installer** | ✅ InnoSetup | tar.gz | DMG | |
-| **Sensoren** | Alle + GPU/Fan | Alle + GPU/Fan | Alle - GPU/Fan | macOS hat keine öffentliche GPU-API |
-| **Befehle** | Alle | Alle + suspend | Alle - suspend + brightness | |
-| **Actionable Notifications** | Dialog mit Buttons | Auto-Execute | Auto-Execute | Linux/Mac: keine interaktiven Buttons |
-| **Lokalisierung** | 6 Sprachen | 6 Sprachen | 6 Sprachen | de, en, es, fr, zh, ja |
-
----
-
-<a id="english"></a>
-
-# 🇬🇧 English
-
-## Table of Contents
-
-1. [HASS.Agent vs. HA DeskLink – Comparison](#hassagent-vs-ha-desklink--comparison)
-   - [Why HA DeskLink?](#why-ha-desklink)
-   - [Feature Comparison](#feature-comparison)
-   - [Architecture](#architecture)
-   - [What HA DeskLink Does NOT Support](#what-ha-desklink-does-not-support)
-   - [Migrating from HASS.Agent](#migrating-from-hassagent)
-2. [Installation](#installation-en)
-3. [Initial Setup](#initial-setup-en)
-4. [Sensors](#sensors-en)
-5. [Commands from Home Assistant](#commands-en)
-6. [Actionable Notifications](#actionable-notifications-en)
-7. [Quick Actions](#quick-actions-en)
-8. [Screenshot Function](#screenshot-en)
-9. [Webcam Sensor](#webcam-sensor-en)
-10. [Settings](#settings-en)
-11. [System Tray & Background](#system-tray-en)
-12. [Auto-Update](#auto-update-en)
-13. [Troubleshooting](#troubleshooting-en)
-14. [Platform Comparison (Windows / Linux / macOS)](#platform-comparison-windows--linux--macos)
-
----
-
-## HASS.Agent vs. HA DeskLink – Comparison
-
-### Why HA DeskLink?
-
-HASS.Agent is a great project – but it requires **MQTT** and a **separate integration** in Home Assistant. HA DeskLink takes a different approach: it uses the **mobile_app protocol**, the same one the official mobile app uses. This means: **No extra integration, no MQTT broker needed.** Just install, enter your token, and you're done.
-
-### Feature Comparison
-
-| Feature | HASS.Agent | HA DeskLink | Notes |
-|---|:---:|:---:|---|
-| **Connection** | MQTT | WebSocket (mobile_app) | No MQTT broker needed |
-| **HA Integration** | Custom HACS integration required | Automatic (mobile_app) | Appears like a phone in HA |
-| **CPU Temperature** | ✅ | ✅ | |
-| **CPU Usage** | ✅ | ✅ | |
-| **RAM** | ✅ | ✅ | |
-| **Disk** | ✅ | ✅ | All drives |
-| **Battery** | ✅ | ✅ | |
-| **GPU Temperature** | ✅ | ✅ (Win/Linux) | macOS: no public API |
-| **GPU Usage** | ✅ | ✅ (Win/Linux) | macOS: only with sudo |
-| **Fan Speed** | ✅ | ✅ (Win/Linux) | |
-| **WiFi SSID** | ✅ | ✅ | |
-| **Uptime** | ✅ | ✅ | |
-| **Active Window** | ✅ | ✅ (Win) | Linux/macOS: limited |
-| **Webcam Status** | ❌ | ✅ | v3.0+: sensor if camera is active |
-| **Commands from HA** | ✅ | ✅ | Shutdown, Restart, Lock, etc. |
-| **Screenshot** | ✅ (Snipping Tool) | ✅ (Real + Upload) | Directly as HA event |
-| **Notifications** | ✅ | ✅ | |
-| **Actionable Notifications** | ✅ | ✅ | v3.0+: buttons in notifications |
-| **Quick Actions** | ✅ | ✅ | v3.0+: hotkey + popup |
-| **Media Player** | ✅ | ❌ | Not planned – WebSocket-only |
-| **Embedded Dashboard** | ✅ (WebView) | ✅ (Win: WebView2) | Linux/Mac: browser |
-| **Auto-Update** | ✅ | ✅ | |
-| **System Tray** | ✅ | ✅ (Win) | Linux: daemon, Mac: dock |
-| **Settings** | GUI | GUI (Win) / Config (Linux/Mac) | |
-| **Localization** | English | 6 languages (de, en, es, fr, zh, ja) | |
-| **macOS** | ❌ | ✅ (Community Test) | |
-| **Linux** | ❌ | ✅ | Headless available |
-| **License** | MIT | GPL v3 | HA DeskLink is copyleft |
-
-### Architecture
-
-**HASS.Agent:** `App ←→ MQTT Broker ←→ HA (+ HACS Integration)`
-
-**HA DeskLink:** `App ←→ Home Assistant (WebSocket + Webhook)` – no extra software needed.
-
-### What HA DeskLink Does NOT Support
-
-| Feature | Why Not |
-|---|---|
-| **Media Player** | Would require a custom HA integration. mobile_app doesn't offer a media player entity. |
-| **MQTT** | Intentionally omitted. mobile_app is simpler. |
-| **WebView on Linux/macOS** | WebView2 not stable on Linux/macOS. Dashboard opens in browser. |
-
-### Migrating from HASS.Agent
-
-1. Install HA DeskLink
-2. Enter HA URL + Long-Lived Token
-3. Device registers automatically in HA
-4. Uninstall HASS.Agent – old entities remain in HA until manually deleted
-5. Adjust automations to `sensor.ha_desklink_*`
-
----
-
-<a id="installation-en"></a>
-
-### Installation
-
-**Windows:**
-1. Download `HA_DeskLink_Setup_x.x.x.exe` from [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
-2. **Right-click → "Run as Administrator"** ⚠️ Normal double-click won't work!
-3. Setup follows automatically
-
-**Linux:**
-1. Download `ha-desklink-linux-x64.tar.gz` from [Releases](https://github.com/TechFlipsi/ha-desklink-linux/releases/latest)
-2. `tar xzf ha-desklink-linux-x64.tar.gz`
-3. `./ha-desklink --setup`
-4. As service: `sudo cp ha-desklink.service /etc/systemd/system/ && sudo systemctl enable --now ha-desklink`
-
-**macOS:**
-1. Download `.dmg` from [Releases](https://github.com/TechFlipsi/ha-desklink-mac/releases/latest)
-2. Drag app to Applications folder
-3. On first launch: enter HA URL + Token
-> ⚠️ macOS = Community Test – not tested by the developer
-
----
-
-<a id="initial-setup-en"></a>
-
-### Initial Setup
-
-You need:
-1. **HA URL** – e.g. `https://homeassistant.local:8123`
-2. **Long-Lived Token** – HA → Profile → Security → Long-Lived Access Tokens → Create Token
-
-Token is stored encrypted (Windows: DPAPI, macOS: Keychain, Linux: config.json).
-
----
-
-<a id="sensors-en"></a>
-
-### Sensors
-
-All sensors appear as `sensor.ha_desklink_*` in Home Assistant.
-
-| Sensor | Win | Linux | Mac | Description |
-|---|:---:|:---:|:---:|---|
-| `cpu_usage` | ✅ | ✅ | ✅ | CPU usage % |
-| `cpu_temp` | ✅ | ✅ | ✅* | CPU temperature °C |
-| `cpu_clock` | ✅ | ✅ | ❌ | CPU clock MHz |
-| `memory` | ✅ | ✅ | ✅ | RAM usage % |
-| `memory_available` | ✅ | ✅ | ✅ | RAM available GB |
-| `battery` | ✅ | ✅ | ✅ | Battery % |
-| `disk_usage` | ✅ | ✅ | ✅ | Disk usage % |
-| `uptime` | ✅ | ✅ | ✅ | Uptime |
-| `ip_address` | ✅ | ✅ | ✅ | IP address |
-| `wifi_ssid` | ✅ | ✅ | ✅ | WiFi name |
-| `process_count` | ✅ | ✅ | ✅ | Process count |
-| `gpu_temp` | ✅ | ✅ | ❌ | GPU temperature |
-| `gpu_load` | ✅ | ✅ | ❌ | GPU usage |
-| `fan_speed` | ✅ | ✅ | ❌ | Fan RPM |
-| `active_window` | ✅ | ❌ | ❌ | Active window title |
-| `webcam_active` | ❌ | ✅ | ✅ | Webcam active on/off (Windows: removed, unreliable) |
-| `brightness` | ❌ | ❌ | ✅ | Display brightness % |
-| `keyboard_backlight` | ❌ | ❌ | ✅ | Keyboard backlight % |
-| `battery_cycle_count` | ❌ | ❌ | ✅ | Battery cycle count |
-| `power_adapter` | ❌ | ❌ | ✅ | Power adapter connected |
-| `network_upload/download` | ✅ | ✅ | ❌ | Network speed |
-
-> *macOS CPU temp: needs `brew install osx-cpu-temp` or sudo
-
----
-
-<a id="commands-en"></a>
-
-### Commands from Home Assistant
-
-Commands are sent via **notifications** – same as the mobile app.
-
-| Command | Win | Linux | Mac | Effect |
-|---|:---:|:---:|:---:|---|
-| `shutdown` | ✅ | ✅ | ✅ | Shut down |
-| `restart` | ✅ | ✅ | ✅ | Restart |
-| `hibernate` | ✅ | ✅ | ✅ | Hibernate |
-| `suspend` | ❌ | ✅ | ❌ | Suspend (Linux) |
-| `lock` | ✅ | ✅ | ✅ | Lock screen |
-| `mute` | ✅ | ✅ | ✅ | Mute volume |
-| `volume_up` | ✅ | ✅ | ✅ | Volume +10% |
-| `volume_down` | ✅ | ✅ | ✅ | Volume -10% |
-| `monitor_on` | ✅ | ✅ | ✅ | Monitor on |
-| `monitor_off` | ✅ | ✅ | ✅ | Monitor off |
-| `screenshot` | ✅ | ✅ | ✅ | Screenshot + upload |
-| `screenshot_save` | ✅ | ✅ | ✅ | Save locally + upload |
-| `snipping_tool` | ✅ | ❌ | ❌ | Windows Snipping Tool |
-| `brightness_up` | ❌ | ❌ | ✅ | Brightness +10% |
-| `brightness_down` | ❌ | ❌ | ✅ | Brightness -10% |
-| `brightness:N` | ❌ | ❌ | ✅ | Set brightness to N% |
-
-> ⚠️ Brightness commands generally **only work on laptops** with built-in displays. On desktop PCs with external monitors, the commands are ignored.
-
-**Example:**
 ```yaml
 service: notify.mobile_app_ha_desklink
 data:
-  title: "Good night!"
-  message: "PC will shut down."
-  data:
-    command: "shutdown"
-```
-
----
-
-<a id="actionable-notifications-en"></a>
-
-### Actionable Notifications
-
-Since v3.0: Notifications with **action buttons**.
-
-| Platform | Presentation |
-|---|---|
-| Windows | WinForms dialog with buttons |
-| Linux | notify-send + auto-execute `command_on_action` |
-| macOS | osascript + auto-execute `command_on_action` |
-
-**Example:**
-```yaml
-service: notify.mobile_app_ha_desklink
-data:
-  title: "Shut down PC?"
-  message: "Should the PC be shut down?"
+  title: "Mediensteuerung"
+  message: "Was möchtest du tun?"
   data:
     actions:
-      - action: SHUTDOWN
-        title: "Shut down"
-        command: shutdown
-      - action: CANCEL
-        title: "Cancel"
-    command_on_action: shutdown
+      - action: PLAY_PAUSE
+        title: "Play/Pause"
+        command: media_play_pause
+      - action: NEXT
+        title: "Weiter"
+        command: media_next
+      - action: PREV
+        title: "Zurück"
+        command: media_previous
+      - action: MUTE
+        title: "Stumm"
+        command: volume_mute
 ```
 
-- `actions`: list of buttons to display
-- `command`: command executed on button click
-- `command_on_action`: fallback command (auto-executed on Linux/macOS)
+### YAML-Beispiel: Energiespar-Optionen
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Energie sparen"
+  message: "Wähle eine Option:"
+  data:
+    actions:
+      - action: SLEEP
+        title: "Energiesparen"
+        command: sleep
+      - action: HIBERNATE
+        title: "Ruhezustand"
+        command: hibernate
+      - action: SHUTDOWN
+        title: "Herunterfahren"
+        command: shutdown
+      - action: CANCEL
+        title: "Abbrechen"
+```
+
+### Felder im Detail
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `actions` | Liste | Liste der Aktions-Buttons |
+| `actions[].action` | String | Eindeutiger Aktions-Key (z.B. „SHUTDOWN") |
+| `actions[].title` | String | Beschriftung des Buttons |
+| `actions[].command` | String | Befehl, der beim Klick ausgeführt wird (optional) |
+| `command_on_action` | String | Fallback-Befehl für Buttons ohne eigenes `command` |
 
 ---
 
-<a id="quick-actions-en"></a>
+## 5. Quick Actions
+
+Quick Actions erlauben es, **Home Assistant Entities direkt vom PC aus umzuschalten** – per globalen Hotkey oder über das Tray-Icon-Menü.
+
+### Funktionsweise
+
+- Beim Drücken des Quick Actions-Hotkeys öffnet sich ein Popup mit allen konfigurierten Entities
+- Beim Klick auf ein Entity wird `homeassistant.toggle` an HA gesendet
+- Die Entities werden in den Einstellungen konfiguriert
+
+### Standard-Hotkeys
+
+| Aktion | Standard-Hotkey | Beschreibung |
+|---|---|---|
+| Quick Actions | `Ctrl+Shift+H` | Öffnet das Quick Actions Popup |
+| Dashboard | `Ctrl+Shift+D` | Öffnet das WebView2 Dashboard |
+| Einstellungen | `Ctrl+Shift+S` | Öffnet das Einstellungsfenster |
+
+> 💡 Alle Hotkeys sind konfigurierbar (Modifier + Taste). Siehe [Einstellungen → Tastenkombinationen](#tastenkombinationen).
+
+### Konfiguration über Einstellungen
+
+1. Tray-Icon → Rechtsklick → **Einstellungen**
+2. Gehe zu **⚡ Quick Actions** (Sidebar)
+3. Klicke **„Hinzufügen"** und wähle eine Entity aus der Dropdown-Liste (lädt alle HA Entities automatisch)
+4. Gib einen Anzeigenamen ein
+5. Speichern
+
+### Konfiguration über config.json
+
+Quick Actions werden als JSON-Array gespeichert:
+
+```json
+{
+  "QuickActions": "[{\"entityId\":\"light.wohnzimmer\",\"name\":\"Wohnzimmerlicht\"},{\"entityId\":\"switch.steckdose\",\"name\":\"Steckdose\"}]"
+}
+```
+
+### YAML-Beispiel: Automatisierung, die Quick Actions nutzt
+
+Quick Actions senden `homeassistant.toggle` an HA. Die folgende Automatisierung reagiert darauf:
+
+```yaml
+automation:
+  - alias: "Reagiere auf Quick Action Toggle"
+    trigger:
+      - platform: state
+        entity_id: light.wohnzimmer
+    action:
+      - service: notify.mobile_app_ha_desklink
+        data:
+          title: "Wohnzimmer"
+          message: "Licht ist jetzt {{ states('light.wohnzimmer') }}"
+```
+
+---
+
+## 6. Custom Commands
+
+Custom Commands erlauben es, **eigene Skripte oder Befehle** zu definieren, die von Home Assistant ausgelöst werden können.
+
+### JSON-Format
+
+Custom Commands werden in der `config.json` als JSON-Array gespeichert:
+
+```json
+{
+  "CustomCommands": "[{\"command\":\"start_streaming\",\"script\":\"C:\\\\Scripts\\\\start_streaming.bat\",\"name\":\"Streaming starten\"}]"
+}
+```
+
+Jeder Eintrag hat folgende Felder:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `command` | String | Der Befehlsname, der von HA gesendet wird (z.B. „start_streaming") |
+| `script` | String | Pfad zum Skript oder Befehl, der ausgeführt wird (z.B. `C:\\Scripts\\stream.bat`) |
+| `name` | String | Anzeigename (optional) |
+
+### Beispiele
+
+#### Beispiel 1: Backup-Skript starten
+
+**config.json Eintrag:**
+```json
+{
+  "CustomCommands": "[{\"command\":\"run_backup\",\"script\":\"C:\\\\Scripts\\\\backup.bat\",\"name\":\"Backup starten\"}]"
+}
+```
+
+**HA YAML:**
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Backup"
+  message: "Backup wird gestartet..."
+  data:
+    command: "run_backup"
+```
+
+#### Beispiel 2: Docker-Container neustarten
+
+**config.json Eintrag:**
+```json
+{
+  "CustomCommands": "[{\"command\":\"restart_docker\",\"script\":\"docker restart homeassistant\",\"name\":\"HA Docker Neustart\"}]"
+}
+```
+
+**HA YAML:**
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Docker-Container wird neugestartet"
+  data:
+    command: "restart_docker"
+```
+
+#### Beispiel 3: Mehrere Custom Commands
+
+```json
+{
+  "CustomCommands": "[{\"command\":\"clear_temp\",\"script\":\"C:\\\\Scripts\\\\clear_temp.bat\",\"name\":\"Temp-Dateien löschen\"},{\"command\":\"defrag_c\",\"script\":\"defrag C: /U /V\",\"name\":\"Defragmentieren\"},{\"command\":\"ipconfig_flush\",\"script\":\"ipconfig /flushdns\",\"name\":\"DNS-Cache leeren\"}]"
+}
+```
+
+**HA YAML für DNS-Cache leeren:**
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "DNS-Cache wird geleert"
+  data:
+    command: "ipconfig_flush"
+```
+
+> ⚠️ Custom Commands werden über `cmd /c <script>` ausgeführt. Das bedeutet, jeder Windows-Befehl oder jedes Batch-Skript kann ausgeführt werden.
+
+---
+
+## 7. App Launchers
+
+App Launchers erlauben es, **Anwendungen vom PC aus über Home Assistant zu starten**.
+
+### JSON-Format
+
+App Launchers werden in der `config.json` als JSON-Array gespeichert:
+
+```json
+{
+  "AppLaunchers": "[{\"command\":\"launch_spotify\",\"path\":\"spotify\",\"name\":\"Spotify\"}]"
+}
+```
+
+Jeder Eintrag hat folgende Felder:
+
+| Feld | Typ | Beschreibung |
+|---|---|---|
+| `command` | String | Der Befehlsname (mit `launch:` Präfix von HA gesendet) |
+| `path` | String | Pfad zur App oder ausführbaren Datei |
+| `name` | String | Anzeigename (optional) |
+
+### Beispiele
+
+#### Beispiel 1: Spotify starten
+
+**config.json Eintrag:**
+```json
+{
+  "AppLaunchers": "[{\"command\":\"launch_spotify\",\"path\":\"spotify\",\"name\":\"Spotify\"}]"
+}
+```
+
+**HA YAML:**
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Spotify"
+  message: "Spotify wird gestartet..."
+  data:
+    command: "launch:launch_spotify"
+```
+
+#### Beispiel 2: Mehrere Apps
+
+```json
+{
+  "AppLaunchers": "[{\"command\":\"spotify\",\"path\":\"spotify\",\"name\":\"Spotify\"},{\"command\":\"steam\",\"path\":\"C:\\\\Program Files (x86)\\\\Steam\\\\Steam.exe\",\"name\":\"Steam\"},{\"command\":\"notepad\",\"path\":\"notepad.exe\",\"name\":\"Editor\"},{\"command\":\"calc\",\"path\":\"calc.exe\",\"name\":\"Taschenrechner\"}]"
+}
+```
+
+**HA YAML für Steam starten:**
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  message: "Steam wird gestartet"
+  data:
+    command: "launch:steam"
+```
+
+> 💡 Apps werden über `Process.Start` mit `UseShellExecute=true` gestartet. Das bedeutet, UWP-Apps (z.B. Spotify aus dem Microsoft Store) und Protokoll-Handler (z.B. `spotify:`, `steam://`) funktionieren ebenfalls.
+
+---
+
+## 8. Benachrichtigungen
+
+HA DeskLink zeigt **Toast-Notifications** auf dem Bildschirm an, wenn Home Assistant eine Benachrichtigung sendet.
+
+### Funktionsweise
+
+- Benachrichtigungen werden als moderne **dunkel-theme Toasts** angezeigt
+- Abgerundete Ecken (GraphicsPath, kein P/Invoke)
+- Akzentfarbige linke Leiste (Blau für normal, Grün für Verbindungsstatus)
+- **Auto-Schließen nach 8 Sekunden** – außer der Mauszeiger ist über dem Toast (Pause bei Hover)
+- Title, Message und Timestamp werden angezeigt
+- Schließen-Button (✕) oben rechts
+
+### Benachrichtigung senden
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Waschmaschine fertig"
+  message: "Die Waschmaschine ist fertig! Bitte Wäsche aufhängen."
+```
+
+### Position konfigurieren
+
+Die Position der Toast-Notifications kann in den Einstellungen konfiguriert werden:
+
+| Position | Beschreibung |
+|---|---|
+| `bottom_left` | Unten links (Standard) |
+| `bottom_right` | Unten rechts |
+| `top_left` | Oben links |
+| `top_right` | Oben rechts |
+
+**Einstellungen → Benachrichtigungen → Position**
+
+### Monitor konfigurieren
+
+Bei Multi-Monitor-Setups kann der Monitor für Benachrichtigungen gewählt werden:
+
+| Wert | Beschreibung |
+|---|---|
+| `0` | Primärer Monitor (Standard) |
+| `1` | Zweiter Monitor |
+| `2` | Dritter Monitor |
+| etc. | |
+
+**Einstellungen → Benachrichtigungen → Monitor**
+
+### Beispiel: Benachrichtigung mit Aktion
+
+```yaml
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Türklingel"
+  message: "Jemand ist an der Tür!"
+  data:
+    actions:
+      - action: OPEN_CAMERA
+        title: "Kamera öffnen"
+        command: launch:launch_camera
+      - action: UNLOCK
+        title: "Tür öffnen"
+        command: launch:open_door
+```
+
+---
+
+## 9. WebView2 Dashboard
+
+HA DeskLink enthält ein **eingebettetes Dashboard** basierend auf Microsoft WebView2. Es zeigt deine Home Assistant Instanz direkt in der App an – wie ein Browser, aber ohne Browser.
+
+### Einrichtung
+
+1. **Öffnen:** Tray-Icon → Doppelklick, oder Rechtsklick → „Dashboard", oder Hotkey `Ctrl+Shift+D`
+2. **WebView2 Runtime:** Falls WebView2 nicht installiert ist, erscheint ein Dialog mit der Option zum automatischen Download
+   - Download-URL: `https://go.microsoft.com/fwlink/p/?LinkId=2124703`
+   - Nach der Installation muss HA DeskLink neu gestartet werden
+3. **Login:** Beim ersten Öffnen erscheint das normale HA-Login-Formular
+   - Melde dich mit Benutzername & Passwort an (wie im Browser)
+4. **Session bleibt erhalten:** WebView2 speichert die Session im Verzeichnis `%APPDATA%\HA_DeskLink\WebView2Data\`
+   - Nach dem ersten Login musst du dich nicht erneut anmelden
+   - Die Session überlebt App-Neustarts
+
+### Verwendung
+
+- Das Dashboard öffnet sich in einem 1300×850 Pixel großen Fenster
+- Minimale Größe: 800×600
+- Du kannst HA wie gewohnt bedienen (Dashboards, Einstellungen, Automatisierungen, etc.)
+- Rechtsklick-Menüs sind aktiviert, DevTools sind deaktiviert
+- Status-Bar ist ausgeblendet
+
+### Fallback
+
+Wenn WebView2 nicht installiert ist und nicht heruntergeladen wird, öffnet sich HA im **Standard-Browser**.
+
+### Programmatisches Öffnen
+
+```yaml
+# HA kann das Dashboard nicht direkt öffnen, aber du kannst
+# eine Benachrichtigung senden, die den Benutzer ans Desktop erinnert:
+service: notify.mobile_app_ha_desklink
+data:
+  title: "Dashboard öffnen"
+  message: "Drücke Ctrl+Shift+D auf deinem PC um das Dashboard zu öffnen."
+```
+
+---
+
+## 10. MQTT (optionale Features)
+
+HA DeskLink v5.0 unterstützt **optionales MQTT** für erweiterte Features. MQTT ist **optional** – die App funktioniert auch ohne MQTT vollständig.
+
+### MQTT-Features
+
+| Feature | Beschreibung |
+|---|---|
+| 🔊 **Media Player Entity** | PC erscheint als Media Player in HA mit now-playing Info, Play/Pause und Lautstärke-Regelung |
+| 📡 **PC Status Binary Sensor** | Sofortige Online/Offline-Erkennung via Last Will Testament (LWT) |
+| ⚡ **Befehle an schlafenden PC** | MQTT-Befehle erreichen den PC auch im Energiesparmodus |
+| 🔍 **Automatische Geräteerkennung** | Media Player und PC Status erscheinen automatisch in HA (MQTT Discovery) |
+| 🔒 **Zuverlässige Verbindung** | Auto-Reconnect mit exponentiellem Backoff (1s, 2s, 4s, 8s, 16s, 30s max) |
+| 🪄 **Zero-Config Setup** | Beim ersten Start wird automatisch nach Mosquitto gesucht |
+| 🧭 **Smart Routing** | MQTT für Sensoren + Befehle, WebSocket bleibt für Benachrichtigungen |
+
+### Konfiguration
+
+MQTT kann im Setup-Wizard oder in den Einstellungen konfiguriert werden:
+
+**Einstellungen → 📡 MQTT**
+
+| Feld | Beschreibung | Standardwert |
+|---|---|---|
+| MQTT aktiviert | Checkbox, ob MQTT verwendet wird | Aus |
+| Broker | MQTT-Broker Hostname/IP | (leer) |
+| Port | MQTT-Port | 1883 |
+| Benutzername | Optional, für Authentifizierung | (leer) |
+| Passwort | Optional, für Authentifizierung | (leer) |
+| SSL/TLS | TLS-Verschlüsselung (TLS 1.2/1.3) | Aus |
+| Fallback Broker | Alternative Broker-Adresse für Auto-Config | (leer) |
+
+### config.json Werte
+
+```json
+{
+  "MqttEnabled": true,
+  "MqttBroker": "192.168.1.100",
+  "MqttPort": 1883,
+  "MqttUsername": "desklink",
+  "MqttPasswordEncrypted": "(DPAPI verschlüsselt)",
+  "MqttUseSsl": false,
+  "MqttAutoConfigured": false,
+  "MqttBrokerFallback": ""
+}
+```
+
+> 🔒 Das MQTT-Passwort wird mit **DPAPI** verschlüsselt gespeichert (wie der HA-Token).
+
+### MQTT Topics
+
+HA DeskLink verwendet folgende Topic-Struktur:
+
+| Topic | Richtung | Beschreibung |
+|---|---|---|
+| `ha_desklink/{deviceId}/availability` | Publish | Online/Offline Status (LWT, retained) |
+| `ha_desklink/{deviceId}/{component}/{objectId}/state` | Publish | Sensor-States |
+| `ha_desklink/{deviceId}/media_player/state` | Publish | Media Player State (playing/paused/idle) |
+| `ha_desklink/{deviceId}/media_player/attributes` | Publish | Media Player Attribute (Title, Artist, Album, Source) |
+| `ha_desklink/{deviceId}/command/media` | Subscribe | Media-Befehle empfangen |
+| `ha_desklink/{deviceId}/command/system` | Subscribe | System-Befehle empfangen |
+| `homeassistant/{component}/{nodeId}/{objectId}/config` | Publish | MQTT Discovery Config (retained) |
+| `homeassistant/status` | Subscribe | HA-Status (birth message) |
+
+### Media Player
+
+Der Media Player zeigt die aktuell wiedergegebene Musik/Video auf dem PC:
+
+| Attribut | Beschreibung |
+|---|---|
+| State | `playing`, `paused`, `idle` |
+| Title | Titel des aktuellen Tracks |
+| Artist | Künstler |
+| Album | Album |
+| Source | App-Name (Spotify, Chrome, Firefox, Edge, VLC, etc.) |
+
+Die Daten werden über die Windows **GlobalSystemMediaTransportControlsSessionManager** API (Windows 10+ build 18362+) gesammelt, mit PowerShell-Fallback.
+
+### PC Status (LWT)
+
+- Beim Start: `ha_desklink/{deviceId}/availability` = `online` (retained)
+- Beim Beenden: `ha_desklink/{deviceId}/availability` = `offline` (retained)
+- Bei Verbindungsverlust: LWT wird automatisch vom Broker gesendet
+
+### MQTT in HA verwenden
+
+```yaml
+# Media Player in Dashboard
+type: media-control
+entity: media_player.ha_desklink_media_player
+```
+
+```yaml
+# Automatisierung: Musik pausieren wenn PC gesperrt wird
+automation:
+  - alias: "Musik pausieren bei PC-Sperre"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.ha_desklink_pc_status
+        to: "off"
+    action:
+      - service: media_player.media_pause
+        target:
+          entity_id: media_player.ha_desklink_media_player
+```
+
+---
+
+## 11. Auto-Update
+
+HA DeskLink prüft automatisch auf neue Versionen und installiert diese.
+
+### Funktionsweise
+
+1. **Beim Start:** HA DeskLink prüft GitHub Releases auf eine neue Version
+2. **Periodisch:** Alle 2 Stunden wird erneut geprüft
+3. **Download:** Bei einer neuen Version wird der Installer heruntergeladen (`HA_DeskLink_Setup.exe`)
+4. **Validierung:** Die Datei muss mindestens 1 MB groß sein (Schutz vor fehlerhaften Downloads)
+5. **Installation:** Der Installer wird mit `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS` ausgeführt
+6. **Neustart:** Die alte App beendet sich, der Installer installiert die neue Version und startet die App neu
+
+### Update-Schutz (Loop Prevention)
+
+- Vor dem Update wird eine `.update_pending` Datei mit der aktuellen Version geschrieben
+- Wenn die Datei existiert und die dortige Version >= der installierten Version ist, wird kein Update angeboten
+- Nach erfolgreichem Update wird die Datei gelöscht
+- Zusätzlicher 1-Stunden-Cooldown zwischen Update-Checks
+
+### Update-Kanäle
+
+| Kanal | Beschreibung | config.json Wert |
+|---|---|---|
+| **Stable** | Nur stabile Releases (Standard) | `"stable"` |
+| **Prerelease** | Inkl. Beta/Vorab-Versionen | `"prerelease"` |
+
+**Einstellungen → Allgemein → Update-Kanal**
+
+### Manuelle Update-Prüfung
+
+Tray-Icon → Rechtsklick → **„Nach Update suchen"**
+
+- Wenn ein Update verfügbar ist, erscheint ein Dialog mit der Frage, ob es installiert werden soll
+- Wenn kein Update verfügbar ist, erscheint „Du bist auf dem neuesten Stand."
+
+---
+
+## 12. Autostart
+
+HA DeskLink kann sich automatisch beim Windows-Login starten.
+
+### Task Scheduler (primäre Methode)
+
+HA DeskLink verwendet den **Windows Task Scheduler** für den Autostart:
+
+- **Task-Name:** `HA_DeskLink`
+- **Trigger:** Bei Logon (`LogonTrigger`)
+- **Privilegien:** Höchste verfügbar (`RunLevel: HighestAvailable`) – kein UAC-Prompt!
+- **Priorität:** High (Priority: 2) – schnellster Start
+- **Eigenschaften:**
+  - `MultipleInstancesPolicy: IgnoreNew` – nur eine Instanz
+  - `DisallowStartIfOnBatteries: false` – startet auch im Akkubetrieb
+  - `StopIfGoingOnBatteries: false` – stoppt nicht beim Akkubetrieb
+  - `StartWhenAvailable: true` – startet nach Verzögerung, wenn der geplante Zeitpunkt verpasst wurde
+
+### Registry-Fallback
+
+Wenn der Task Scheduler nicht verfügbar ist, wird die **Registry** verwendet:
+
+- **Key:** `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`
+- **Wert:** `HA_DeskLink` = `"<Pfad zur HA_DeskLink.exe>"`
+- ⚠️ Beim Registry-Autostart erscheint eine UAC-Abfrage, da die App als Administrator läuft
+
+### Start-Menü-Verknüpfung
+
+Zusätzlich wird eine **Start-Menü-Verknüpfung** erstellt:
+- Pfad: `%APPDATA%\Microsoft\Windows\Start Menu\Programs\HA DeskLink.lnk`
+
+### Autostart aktivieren/deaktivieren
+
+**Einstellungen → Allgemein → Autostart** (Checkbox)
+
+Oder über die `config.json`:
+```json
+{
+  "Autostart": true
+}
+```
+
+Wenn aktiviert, wird `Autostart.Enable()` aufgerufen (Task Scheduler + Start-Menü-Verknüpfung).
+Wenn deaktiviert, wird `Autostart.Disable()` aufgerufen (Task Scheduler + Registry-Eintrag werden entfernt).
+
+---
+
+## 13. Einstellungen
+
+Das Einstellungsfenster hat eine Sidebar-Navigation mit 7 Bereichen. Öffnen über:
+- Tray-Icon → Rechtsklick → **Einstellungen**
+- Hotkey: `Ctrl+Shift+S`
+
+### Verbindung
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| HA URL | TextBox | `https://homeassistant.local:8123` | URL der Home Assistant Instanz |
+| Long-Lived Token | TextBox (Passwort) | (leer) | Long-Lived Access Token aus HA |
+| SSL-Zertifikat prüfen | CheckBox | (leer) | Ob SSL-Zertifikate validiert werden; bei self-signed Zertifikaten deaktivieren |
+| Neu verbinden | Button | – | Registriert die App neu bei HA |
+
+### Allgemein
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| Autostart | CheckBox | Aktiviert | Startet HA DeskLink automatisch beim Windows-Login |
+| Sensor-Intervall | NumericUpDown | 30 (10-300) | Sekunden zwischen Sensor-Updates |
+| Update-Kanal | ComboBox | Stable | Stable oder Prerelease |
+| Geräte-ID zurücksetzen | Button | – | Generiert eine neue Geräte-ID (für neue Registrierung) |
+| Sensoren neu registrieren | Button | – | Registriert alle Sensoren neu bei HA (hilft nach Updates) |
+
+### Erscheinungsbild
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| Sprache | ComboBox | Deutsch | UI-Sprache (15 Sprachen verfügbar) |
+| Design | ComboBox | System | System (folgt Windows), Hell, oder Dunkel |
+
+### Benachrichtigungen
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| Position | ComboBox | Unten links | Position der Toast-Notifications |
+| Monitor | ComboBox | 0 (Primär) | Monitor für Benachrichtigungen (0-N) |
+
+Verfügbare Positionen:
+- `bottom_left` – Unten links (Standard)
+- `bottom_right` – Unten rechts
+- `top_left` – Oben links
+- `top_right` – Oben rechts
+
+### Tastenkombinationen
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| Quick Actions Modifier | ComboBox | Ctrl+Shift | Modifikator-Tasten für Quick Actions |
+| Quick Actions Taste | ComboBox | H | Taste für Quick Actions |
+| Dashboard Modifier | ComboBox | Ctrl+Shift | Modifikator-Tasten für Dashboard |
+| Dashboard Taste | ComboBox | D | Taste für Dashboard |
+| Einstellungen Modifier | ComboBox | Ctrl+Shift | Modifikator-Tasten für Einstellungen |
+| Einstellungen Taste | ComboBox | S | Taste für Einstellungen |
+
+Verfügbare Modifikatoren: `ctrl_shift`, `ctrl_alt`, `ctrl`, `alt`, `shift`, `none`
+
+> ⚠️ Wenn Modifier auf `none` gesetzt ist, wird der jeweilige Hotkey deaktiviert.
+
+### MQTT
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| MQTT aktiviert | CheckBox | Aus | Aktiviert/deaktiviert MQTT |
+| Broker | TextBox | (leer) | MQTT-Broker Hostname/IP |
+| Port | TextBox | 1883 | MQTT-Port |
+| Benutzername | TextBox | (leer) | Optional, für Authentifizierung |
+| Passwort | TextBox (Passwort) | (leer) | Optional, für Authentifizierung |
+| SSL/TLS | CheckBox | Aus | TLS-Verschlüsselung |
+| Fallback Broker | TextBox | (leer) | Alternative Broker-Adresse |
 
 ### Quick Actions
 
-Since v3.0: **Toggle HA entities via hotkey/button**.
+Hier können Quick Actions (HA-Entity-Toggles) hinzugefügt, entfernt und sortiert werden. Die Entity-Liste wird automatisch von HA geladen.
 
-**Configuration:**
-- **Windows:** Settings → Quick Actions → Add entity IDs
-  - Quick Actions Hotkey: Default Ctrl+Shift+H
-  - Dashboard Hotkey: Default Ctrl+Shift+D
-  - Settings Hotkey: Default Ctrl+Shift+S
-  - All hotkeys configurable (modifier + key)
-- **Linux/macOS:** `config.json` → `QuickActions` field:
+### Webhook Bind Address
+
+| Einstellung | Typ | Standardwert | Beschreibung |
+|---|---|---|---|
+| WebhookBindAddress | String | `+` | Bind-Adresse für den Webhook-Server (Port 59123) |
+
+- `+` = Alle Netzwerk-Interfaces (Standard, HA kann von überall zugreifen)
+- `localhost` = Nur lokal (sicherer, wenn HA auf dem gleichen PC läuft)
+
+### config.json Übersicht
+
+Alle Einstellungen werden in `%APPDATA%\HA_DeskLink\config.json` gespeichert:
+
 ```json
-{"QuickActions": "[{\"entityId\":\"light.living_room\",\"name\":\"Living Room\"}]"}
+{
+  "HaUrl": "https://homeassistant.local:8123",
+  "HaToken": "",
+  "HaTokenEncrypted": "(DPAPI verschlüsselt)",
+  "VerifySsl": true,
+  "Autostart": true,
+  "SensorInterval": 30,
+  "UpdateChannel": "stable",
+  "Language": "de",
+  "Theme": "system",
+  "QuickActions": "[]",
+  "HotkeyModifiers": "ctrl_shift",
+  "HotkeyKey": "H",
+  "HotkeyDashboardModifiers": "ctrl_shift",
+  "HotkeyDashboardKey": "D",
+  "HotkeySettingsModifiers": "ctrl_shift",
+  "HotkeySettingsKey": "S",
+  "MqttEnabled": false,
+  "MqttBroker": "",
+  "MqttPort": 1883,
+  "MqttUsername": "",
+  "MqttPassword": "",
+  "MqttPasswordEncrypted": "",
+  "MqttUseSsl": false,
+  "MqttAutoConfigured": false,
+  "MqttBrokerFallback": "",
+  "CustomCommands": "[]",
+  "AppLaunchers": "[]",
+  "WebhookBindAddress": "+",
+  "NotificationPosition": "bottom_left",
+  "NotificationMonitor": 0
+}
 ```
 
-| Platform | Trigger |
-|---|---|
-| Windows | Configurable (default: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Settings) or Tray icon |
-| Linux | Dashboard button ⚡ |
-| macOS | Dashboard button ⚡ |
+---
 
-Clicking sends `homeassistant.toggle` to HA.
+## 14. Sicherheit
+
+### DPAPI-Verschlüsselung
+
+HA DeskLink verschlüsselt sensible Daten mit der **Windows Data Protection API (DPAPI)**:
+
+- **HA-Token:** Wird mit `ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser)` verschlüsselt
+- **MQTT-Passwort:** Ebenfalls DPAPI-verschlüsselt
+- **Speicherort:** `%APPDATA%\HA_DeskLink\config.json` – das Feld `HaToken` ist **immer leer** in der gespeicherten Datei, nur `HaTokenEncrypted` enthält den verschlüsselten Wert
+
+**Was bedeutet das?**
+- Der Token kann **nur vom selben Windows-Benutzer auf demselben PC** entschlüsselt werden
+- Ein Angreifer, der die `config.json` kopiert, kann den Token **nicht** auf einem anderen PC oder als anderer Benutzer entschlüsseln
+- DPAPI ist in Windows integriert und benötigt keine zusätzliche Software
+
+### Migration von Klartext zu verschlüsselt
+
+Wenn eine alte `config.json` mit Klartext-Token gefunden wird, passiert Folgendes beim Laden:
+1. Der Klartext-Token (`HaToken`) wird erkannt
+2. Er wird mit DPAPI verschlüsselt und in `HaTokenEncrypted` gespeichert
+3. Das `HaToken`-Feld wird geleert
+4. Die Datei wird sofort neu gespeichert
+
+### Login-Retry-Limit
+
+- MQTT: Nach 10 aufeinanderfolgenden Verbindungsfehlern wird 60 Sekunden pausiert, dann neu versucht
+- Auto-Reconnect mit exponentiellem Backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+
+### Admin-Rechte
+
+- Der Installer benötigt Administrator-Rechte (`PrivilegesRequired=admin`)
+- Die App startet automatisch als Administrator (für CPU/GPU-Temperatur über WMI)
+- Autostart über Task Scheduler mit `HighestAvailable` Privilegien (kein UAC-Prompt bei jedem Start)
+- **Ohne Admin-Rechte** funktioniert die App auch – nur CPU-Temperatur, GPU-Temperatur und Lüfter-Drehzahl fehlen
+
+### Webhook-Sicherheit
+
+- Der Webhook-Server (Port 59123) validiert den Token bei jeder Anfrage
+- Token-Validierung mit `CryptographicOperations.FixedTimeEquals` (timing-safe, verhindert Timing-Angriffe)
+- Token wird vorzugsweise aus dem `Authorization: Bearer` Header gelesen (sicherer)
+- Fallback: Token im Query-String (weniger sicher, kann in Logs erscheinen)
+- `WebhookBindAddress` kann auf `localhost` gesetzt werden, um den Zugriff auf die lokale Maschine zu beschränken
+
+### TTS-Sicherheit
+
+- Der TTS-Text wird vor der Ausführung escapet (`'` → `''`), um **Command-Injection** zu verhindern
+- Der Text wird in single quotes gewickelt, bevor er an PowerShell übergeben wird
 
 ---
 
-<a id="screenshot-en"></a>
+## 15. Sprachen
 
-### Screenshot Function
+HA DeskLink unterstützt **15 Sprachen**. Die Sprache kann in den Einstellungen geändert werden:
 
-| Command | Effect |
+**Einstellungen → Erscheinungsbild → Sprache**
+
+| Code | Sprache (nativ) |
 |---|---|
-| `screenshot` | Screenshot + HA event upload |
-| `screenshot_save` | Save locally + HA event upload |
+| `de` | Deutsch |
+| `en` | English |
+| `es` | Español |
+| `fr` | Français |
+| `ja` | 日本語 |
+| `zh` | 中文 |
+| `it` | Italiano |
+| `pt` | Português |
+| `ru` | Русский |
+| `nl` | Nederlands |
+| `pl` | Polski |
+| `tr` | Türkçe |
+| `ar` | العربية |
+| `ko` | 한국어 |
+| `sv` | Svenska |
 
-| Platform | Method |
-|---|---|
-| Windows | Graphics.CopyFromScreen → PNG → Base64 |
-| Linux | gnome-screenshot → scrot → grim |
-| macOS | screencapture -x |
+> 💡 Sprachen werden automatisch aus dem `Lang/` Ordner erkannt (alle `*.json` Dateien außer `languages.json`). Die Anzeigenamen werden aus `languages.json` gelesen. Fallback ist immer Deutsch.
 
 ---
 
-<a id="webcam-sensor-en"></a>
+## 16. Build & Entwicklung
 
-### Webcam Sensor
+### Voraussetzungen
 
-Sensor `sensor.ha_desklink_webcam_active` – `on` when camera is active, `off` when not.
+- **.NET 8 SDK** (oder neuer)
+- **InnoSetup** (für den Installer)
+- **WebView2 SDK** (NuGet: `Microsoft.Web.WebView2`)
+- **MQTTnet** (NuGet: `MQTTnet`)
 
-> ⚠️ **Windows:** This sensor was removed in v3.0.4 because WMI cannot reliably detect webcam in use. Only available on Linux and macOS.
+### Build
 
-| Platform | Detection |
-|---|---|
-| Windows | WMI Win32_PnPEntity Camera |
-| Linux | /dev/video* + /proc/*/fd/* |
-| macOS | ioreg + lsof |
+```bash
+# App kompilieren (self-contained, win-x64)
+dotnet publish src/HaDeskLink -c Release -r win-x64 --self-contained -o publish
 
----
+# Installer erstellen
+iscc installer.iss
+```
 
-<a id="settings-en"></a>
+### Projekt-Struktur
 
-### Settings
+```
+src/HaDeskLink/
+├── HaDeskLink.csproj    # Projekt-Datei
+├── Program.cs           # Einstiegspunkt (Main, Setup-Wizard-Trigger)
+├── DeskLinkApp.cs       # Hauptanwendung (Tray, Sensor-Loop, Update, Hotkeys)
+├── Config.cs            # Konfiguration (JSON, DPAPI-Verschlüsselung)
+├── SensorManager.cs      # Sensor-Datensammlung (WMI, PerformanceCounter, COM)
+├── SensorData.cs         # Sensor-Modell
+├── HaApiClient.cs       # HA mobile_app API-Client (Registrierung, Sensoren, Update)
+├── HaWebSocketClient.cs  # WebSocket-Client für Push-Notifications
+├── WebhookServer.cs      # HTTP-Listener für Befehle/Notifications
+├── CommandHandler.cs     # Befehlsausführung (shutdown, volume, screenshot, etc.)
+├── NotificationHandler.cs # Toast-Notification-Handler
+├── DashboardWindow.cs    # WebView2 Dashboard-Fenster
+├── SetupWizard.cs         # Ersteinrichtungs-Wizard
+├── SettingsWindow.cs      # Einstellungs-Fenster
+├── QuickActionWindow.cs   # Quick Actions Popup
+├── QuickActionHandler.cs  # Globaler Hotkey-Handler
+├── Autostart.cs           # Task Scheduler / Registry Autostart
+├── Localization.cs        # JSON-basiertes Lokalisierungssystem
+├── MqttClient.cs          # MQTT-Client (Discovery, LWT, Media Player)
+├── MqttSetupHelper.cs     # MQTT Auto-Setup Helper
+├── MediaPlayer.cs         # Media Player State (GSMT COM API)
+├── Lang/                  # Sprachdateien (*.json)
+│   ├── languages.json     # Sprachnamen (Code → nativer Name)
+│   ├── de.json            # Deutsch
+│   ├── en.json            # English
+│   └── ...                # Weitere Sprachen
+└── Assets/
+    └── icon.ico           # App-Icon
+```
 
-| Platform | Method |
-|---|---|
-| Windows | Tray icon → Right-click → Settings (or Ctrl+Shift+S) |
-| Linux | Dashboard → ⚙️ Setup or config.json |
-| macOS | Dashboard → ⚙️ Setup |
+### Versionierung
 
----
+Ab v2.2.1 gelten plattformunabhängige Versionsnummern:
 
-<a id="system-tray-en"></a>
-
-### System Tray & Background
-
-| Platform | Behavior |
-|---|---|
-| Windows | Minimized to system tray. Configurable hotkeys (default: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Settings). |
-| Linux | systemd daemon. Dashboard optional. |
-| macOS | Regular app. Dashboard in browser. |
-
----
-
-<a id="auto-update-en"></a>
-
-### Auto-Update
-
-| Platform | When | Method |
+| Änderung | Beispiel | Erklärung |
 |---|---|---|
-| Windows | On start | Download + installer |
-| Linux | Every 2h | Download + tar.gz |
-| macOS | On start | Download + DMG link |
+| Bug Fix | 2.2.1 → 2.2.2 | Fehlerbehebung, nur betroffene Plattform |
+| Neue Funktionen | 2.2.x → 3.0.0 | Neue Features, alle Plattformen gleichzeitig |
+
+Die Versionsnummer wird aus der `VERSION` Datei im App-Verzeichnis gelesen (Fallback: Assembly-Version).
+
+### Lizenz
+
+GPL v3 – Copyright © 2026 Fabian Kirchweger
+
+Dieses Programm ist freie Software. Wenn du es modifizierst oder verteilst, **musst** du die Änderungen unter derselben GPL v3 Lizenz veröffentlichen. Closed-source oder proprietäre Nutzung ist **nicht** erlaubt.
 
 ---
 
-<a id="troubleshooting-en"></a>
+## 17. Fehlerbehebung
 
-### Troubleshooting
+### Häufige Probleme und Lösungen
 
-| Problem | Solution |
+| Problem | Lösung |
 |---|---|
-| Can't connect | Check HA URL, token, firewall port 8123 |
-| Sensors missing in HA | Wait 30-60s, open device in HA, restart |
-| CPU temp empty (Win) | Run as Administrator |
-| Webcam always "off" | Camera present? Linux: `ls /dev/video*` |
-| SSL error | Disable SSL verification in settings |
-| **Windows Defender: VulnerableDriver** | See below ⚠️ |
+| **Verbindung zu HA klappt nicht** | 1. HA URL prüfen (inkl. Port 8123)<br>2. Token prüfen (Long-Lived Access Token)<br>3. Firewall: Port 8123 freigeben<br>4. SSL-Prüfung deaktivieren bei self-signed Zertifikaten |
+| **Sensoren fehlen in HA** | 1. 30-60 Sekunden warten (Sensoren werden beim Start registriert)<br>2. Gerät in HA öffnen (Einstellungen → Geräte & Dienste → mobile_app)<br>3. App neu starten<br>4. „Sensoren neu registrieren" in den Einstellungen |
+| **CPU-Temperatur ist leer** | App als Administrator starten (WMI MSAcpi_ThermalZoneTemperature benötigt Admin-Rechte) |
+| **GPU-Temperatur fehlt** | NVIDIA: nvidia-smi installiert? AMD: Radeon Software installiert? Intel: WMI thermal zone verfügbar? |
+| **Webcam-Sensor immer „off"** | Auf Windows ist die Webcam-Erkennung unzuverlässig (WMI Win32_PnPEntity). Der Sensor zeigt nur, ob das Gerät vorhanden ist, nicht ob es aktiv verwendet wird. |
+| **SSL-Fehler** | SSL-Prüfung in Einstellungen deaktivieren („SSL-Zertifikat prüfen" abwählen) |
+| **Token konnte nicht geladen werden** | DPAPI-Entschlüsselung fehlgeschlagen (anderer Benutzer oder andere Maschine). App neu einrichten (neuer Token). |
+| **Benachrichtigungen erscheinen nicht** | 1. WebSocket-Verbindung prüfen (Tray-Icon zeigt Status)<br>2. Notification-Service prüfen: `notify.mobile_app_ha_desklink`<br>3. App läuft als Administrator? |
+| **Hotkeys funktionieren nicht** | 1. Andere App blockiert den globalen Hotkey<br>2. Hotkey-Konfiguration in Einstellungen prüfen<br>3. App als Administrator starten |
+| **MQTT verbindet nicht** | 1. Broker-Adresse und Port prüfen<br>2. Benutzername/Passwort prüfen<br>3. SSL-Option prüfen<br>4. Firewall: Port 1883 (oder konfigurierten Port) freigeben |
+| **Auto-Update schlägt fehl** | 1. Internetverbindung prüfen<br>2. GitHub erreichbar?<br>3. Manuell von [Releases](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest) herunterladen und als Administrator installieren |
+| **Dashboard (WebView2) lädt nicht** | 1. WebView2 Runtime installieren (wird automatisch angeboten)<br>2. HA URL korrekt? |
+| **App startet nicht automatisch** | 1. Einstellungen → Autostart aktiviert?<br>2. Task Scheduler: Task „HA_DeskLink" vorhanden? (`schtasks /query /tn "HA_DeskLink"`)<br>3. Registry: `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\HA_DeskLink` |
 
-### ⚠️ Windows Defender – "Vulnerable Driver: WinNT/Winring0"
+### Log-Datei
 
-Windows Defender may report **VulnerableDriver:WinNT/Winring0** for the file `HA_DeskLink.sys`.
+Die Log-Datei befindet sich unter: `%APPDATA%\HA_DeskLink\error.log`
 
-**This is a false positive!** Here's why:
+Öffnen über: Tray-Icon → Rechtsklick → **„Log öffnen"**
 
-- HA DeskLink uses **WMI + PerformanceCounter** for hardware sensors (CPU temp, GPU temp, fan speed) – completely driverless, no WinRing0
-- This library uses the **WinRing0 driver** to read hardware sensors at kernel level
-- WinRing0 is a **legitimate, open-source driver** – it needs kernel access to read temperature sensors
-- Microsoft Defender flags all kernel drivers as "potentially dangerous", even when they're harmless
+### Config-Verzeichnis
 
-**How to allow the driver:**
+Alle Konfigurationsdateien liegen in: `%APPDATA%\HA_DeskLink\`
 
-1. Open Windows Defender → **Protection history**
-2. Find the entry "VulnerableDriver:WinNT/Winring0"
-3. Click **Actions** → **Allow**
+| Datei | Beschreibung |
+|---|---|
+| `config.json` | Hauptkonfiguration (Einstellungen, Token verschlüsselt) |
+| `registration.json` | HA-Registrierung (webhook_id, device_id, cloud_url) |
+| `error.log` | Log-Datei |
+| `.update_pending` | Marker-Datei während eines Updates |
+| `WebView2Data/` | WebView2 Session-Daten (Login-Cookies) |
+| `device_id.txt` | Temporäre Datei für Geräte-ID-Reset |
 
-Or alternatively:
+### Geräte-ID zurücksetzen
 
-1. Windows Settings → **Privacy & Security** → **Windows Security**
-2. **Virus & threat protection** → **Protection history**
-3. Find the driver entry → **Allow**
+Wenn die App nicht mehr korrekt bei HA registriert ist (z.B. nach einem PC-Wechsel oder Windows-Neuinstallation):
 
-**Without admin rights** HA DeskLink still works – you'll just miss CPU/GPU temperature and fan speed. All other sensors and commands work normally.
-| CPU temp empty (Win) | Run as Administrator |
-| Webcam always "off" | Camera present? Linux: `ls /dev/video*` |
-| SSL error | Disable SSL verification in settings |
+1. Einstellungen → Allgemein → **„Geräte-ID zurücksetzen"**
+2. Es wird eine neue UUID generiert und in `device_id.txt` geschrieben
+3. Beim nächsten Start registriert sich die App mit der neuen ID bei HA
+4. Das alte Gerät in HA muss manuell gelöscht werden
 
----
+### Support
 
-<a id="platform-comparison-en"></a>
-
-### Platform Comparison (Windows / Linux / macOS)
-
-| Feature | Windows | Linux | macOS | Explanation |
-|---|:---:|:---:|:---:|---|
-| **GUI** | WinForms | Avalonia | Avalonia | |
-| **Embedded Dashboard** | ✅ WebView2 | ❌ Browser | ❌ Browser | WebView2 not stable on Linux/Mac |
-| **System Tray** | ✅ | ❌ Daemon | ❌ Dock | |
-| **Quick Actions Hotkey** | ✅ Configurable | ❌ Button | ❌ Button | Default: Ctrl+Shift+H/QA, Ctrl+Shift+D/Dashboard, Ctrl+Shift+S/Settings |
-| **Screenshot Method** | CopyFromScreen | gnome-screenshot | screencapture | |
-| **Webcam Detection** | WMI | /dev/video* | ioreg/lsof | |
-| **Token Storage** | DPAPI | config.json | Keychain | |
-| **Admin Required** | Yes (HW sensors) | No | No | |
-| **Daemon Mode** | ❌ | ✅ systemd | ❌ | |
-| **Installer** | ✅ InnoSetup | tar.gz | DMG | |
-| **Sensors** | All + GPU/Fan | All + GPU/Fan | All - GPU/Fan | macOS has no public GPU API |
-| **Commands** | All | All + suspend | All - suspend + brightness | |
-| **Actionable Notifications** | Dialog with buttons | Auto-execute | Auto-execute | Linux/Mac: no interactive buttons |
-| **Localization** | 6 languages | 6 languages | 6 languages | de, en, es, fr, zh, ja |
+- 💬 **Discord:** [discord.com/invite/zHPhQ7EaqH](https://discord.com/invite/zHPhQ7EaqH)
+- 🐛 **GitHub Issues:** [github.com/TechFlipsi/ha-desklink-windows/issues](https://github.com/TechFlipsi/ha-desklink-windows/issues)
 
 ---
 
-**Idee / Idea:** Fabian Kirchweger | **Code:** J.A.R.V.I.S. (Hermes Agent) | **Lizenz / License:** GPL v3
+**Idee:** Fabian Kirchweger | **Code:** J.A.R.V.I.S. (Hermes Agent) | **Lizenz:** GPL v3
+
+> Diese Anleitung wurde aus dem Sourcecode der Version 5.0.4 generiert. Alle Entity-Namen, Befehle und Konfigurationen entsprechen der tatsächlichen Implementierung.

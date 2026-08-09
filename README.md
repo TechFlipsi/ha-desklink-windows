@@ -12,9 +12,15 @@
 
 <!-- SEO: home assistant desktop app, home assistant windows companion, hass desktop, home assistant sensor monitor, smart home desktop widget -->
 
-📖 **[Betriebsanleitung / Manual](MANUAL.md)** – Installation, Sensoren, Befehle, Quick Actions, Actionable Notifications, Screenshot, Webcam, Plattform-Vergleich & mehr (DE + EN)
+📖 **[Betriebsanleitung / Manual](MANUAL.md)** – Umfassende Anleitung: Installation, alle Sensoren, Befehle, Quick Actions, MQTT, Auto-Update, Einstellungen, Sicherheit & Fehlerbehebung (Deutsch)
+
+📖 **[User Guide](GUIDE.md)** – Complete manual: Installation, all sensors, commands, Quick Actions, MQTT, Auto-Update, settings, security & troubleshooting (English)
 
 📊 **[HASS.Agent vs. HA DeskLink](COMPARISON.md)** – Features, Architektur & Migration im Vergleich (DE + EN)
+
+📝 **[Changelog](CHANGELOG.md)** – Alle Versionen und Änderungen
+
+👏 **[Credits](CREDITS.md)** – Mitwirkende und verwendete KI-Modelle
 
 Geschrieben in **C# / .NET 8** – treiberlose Sensor-Erfassung via WMI + PerformanceCounter (kein Kernel-Treiber nötig!).
 
