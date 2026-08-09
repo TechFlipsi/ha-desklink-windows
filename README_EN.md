@@ -10,6 +10,15 @@
 
 Written in **C# / .NET 8** – driverless sensor readings via WMI + PerformanceCounter (no kernel driver needed!).
 
+📖 **[User Guide](GUIDE.md)** – Complete manual: Installation, all sensors, commands, Quick Actions, MQTT, Auto-Update, settings, security & troubleshooting (English)
+
+📖 **[Betriebsanleitung](MANUAL.md)** – Umfassende Anleitung (Deutsch)
+
+📊 **[HASS.Agent vs. HA DeskLink](COMPARISON.md)** – Features, architecture & migration comparison (DE + EN)
+
+📝 **[Changelog](CHANGELOG.md)** – All versions and changes
+
+👏 **[Credits](CREDITS.md)** – Contributors and AI models used
 
 ## Features
 - 🌡️ **CPU & GPU Temperature** – driverless via WMI + PerformanceCounter (no WinRing0, no Defender warning!)
