@@ -82,6 +82,7 @@ public class DeskLinkApp
 
         // Capture UI thread context for cross-thread marshaling (notification toasts)
         NotificationHandler.UiContext = SynchronizationContext.Current;
+        NotificationImageLoader.CleanupCache();
 
         // Check if token is available (encryption/migration may fail)
         if (string.IsNullOrEmpty(_config.HaToken))

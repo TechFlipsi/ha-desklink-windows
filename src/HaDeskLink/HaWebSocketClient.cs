@@ -263,8 +263,9 @@ public class HaWebSocketClient : IDisposable
                     string title = "HA DeskLink";
                     string message = "";
                     string? command = null;
-                    List<NotificationAction>? actions = null;
                     string? commandOnAction = null;
+                    string? imageUrl = null;
+                    List<NotificationAction>? actions = null;
 
                     if (eventEl.TryGetProperty("title", out var t))
                         title = t.GetString() ?? title;
@@ -285,6 +286,11 @@ public class HaWebSocketClient : IDisposable
                                 title = dt2.GetString() ?? title;
                             if (innerData.TryGetProperty("message", out var dm2))
                                 message = dm2.GetString() ?? message;
+                            if (innerData.TryGetProperty("image", out var img2))
+                                imageUrl ??= img2.GetString();
+                            if (innerData.TryGetProperty("attachment", out var att2) &&
+                                att2.TryGetProperty("url", out var attUrl2))
+                                imageUrl ??= attUrl2.GetString();
                             if (innerData.TryGetProperty("actions", out var actionsArr2))
                             {
                                 actions ??= new List<NotificationAction>();
@@ -329,10 +335,11 @@ public class HaWebSocketClient : IDisposable
                     // Show notification
                     if (!string.IsNullOrEmpty(message))
                     {
+                        var image = NotificationHandler.TryLoadImage(imageUrl);
                         if (actions != null && actions.Count > 0)
-                            NotificationHandler.ShowActionableNotification(title, message, actions, commandOnAction);
+                            NotificationHandler.ShowActionableNotification(title, message, actions, commandOnAction, image: image);
                         else
-                            NotificationHandler.ShowNotification(title, message);
+                            NotificationHandler.ShowNotification(title, message, image: image);
                     }
                     else if (!string.IsNullOrEmpty(command))
                     {

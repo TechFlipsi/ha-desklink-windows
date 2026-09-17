@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -36,8 +37,9 @@ public static class NotificationHandler
             string title = "HA DeskLink";
             string message = "";
             string? command = null;
-            List<NotificationAction>? actions = null;
             string? commandOnAction = null;
+            string? imageUrl = null;
+            List<NotificationAction>? actions = null;
 
             if (root.TryGetProperty("title", out var t1)) title = t1.GetString() ?? title;
             if (root.TryGetProperty("message", out var m1)) message = m1.GetString() ?? "";
@@ -49,6 +51,11 @@ public static class NotificationHandler
                 if (data.TryGetProperty("message", out var m2)) message = m2.GetString() ?? message;
                 if (data.TryGetProperty("command", out var c2)) command = c2.GetString();
                 if (data.TryGetProperty("command_on_action", out var coa)) commandOnAction = coa.GetString();
+                // Companion-style image: data.image, or data.attachment.url override
+                if (data.TryGetProperty("image", out var img)) imageUrl = img.GetString();
+                if (data.TryGetProperty("attachment", out var att) &&
+                    att.TryGetProperty("url", out var attUrl))
+                    imageUrl = attUrl.GetString() ?? imageUrl;
                 if (data.TryGetProperty("actions", out var actionsArr))
                 {
                     actions = new List<NotificationAction>();
@@ -69,10 +76,11 @@ public static class NotificationHandler
 
             if (!string.IsNullOrEmpty(message))
             {
+                var image = TryLoadImage(imageUrl);
                 if (actions != null && actions.Count > 0)
-                    ShowActionableNotification(title, message, actions, commandOnAction, trayIcon);
+                    ShowActionableNotification(title, message, actions, commandOnAction, trayIcon, image);
                 else
-                    ShowNotification(title, message, trayIcon);
+                    ShowNotification(title, message, trayIcon, image);
                 return true;
             }
 
@@ -82,22 +90,47 @@ public static class NotificationHandler
         return false;
     }
 
-    public static void ShowNotification(string title, string message, NotifyIcon? trayIcon = null)
+    /// <summary>
+    /// Resolves an HA companion-style image reference to a local file.
+    /// Returns null (with log line) when no image or on failure - the toast
+    /// then shows a hint instead of silently dropping the feature.
+    /// </summary>
+    internal static NotificationImageLoader.ImageResult? TryLoadImage(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl)) return null;
+        try
+        {
+            var config = Config.Load();
+            var token = Environment.GetEnvironmentVariable("HA_TOKEN")
+                     ?? Environment.GetEnvironmentVariable("HASS_TOKEN")
+                     ?? string.Empty;
+            var result = NotificationImageLoader.Load(imageUrl, config.HaUrl, token);
+            if (result.LocalPath != null)
+                return result;
+            Console.WriteLine($"[Notification] Image load failed: {result.Error}");
+        }
+        catch (Exception ex) { Console.WriteLine($"[Notification] Image error: {ex.Message}"); }
+        return null;
+    }
+
+    public static void ShowNotification(string title, string message, NotifyIcon? trayIcon = null,
+        NotificationImageLoader.ImageResult? image = null)
     {
         ShowToastOnUiThread(() =>
         {
-            var toast = new NotificationToast(title, message);
+            var toast = new NotificationToast(title, message, image: image);
             toast.FormClosed += (s, e) => toast.Dispose();
             toast.Show();
         });
     }
 
     public static void ShowActionableNotification(string title, string message,
-        List<NotificationAction> actions, string? commandOnAction = null, NotifyIcon? trayIcon = null)
+        List<NotificationAction> actions, string? commandOnAction = null, NotifyIcon? trayIcon = null,
+        NotificationImageLoader.ImageResult? image = null)
     {
         ShowToastOnUiThread(() =>
         {
-            var toast = new NotificationToast(title, message, actions, commandOnAction);
+            var toast = new NotificationToast(title, message, actions, commandOnAction, image: image);
             toast.FormClosed += (s, e) => toast.Dispose();
             toast.Show();
         });
@@ -140,19 +173,21 @@ public class NotificationToast : Form
     private readonly System.Windows.Forms.Timer _autoCloseTimer;
     private readonly List<NotificationAction>? _actions;
     private readonly string? _commandOnAction;
+    private readonly NotificationImageLoader.ImageResult? _image;
 
     public NotificationToast(string title, string message,
         List<NotificationAction>? actions = null, string? commandOnAction = null,
-        Color? accentOverride = null)
+        Color? accentOverride = null, NotificationImageLoader.ImageResult? image = null)
     {
         _actions = actions;
         _commandOnAction = commandOnAction;
+        _image = image;
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
         ShowInTaskbar = false;
-        Size = new Size(400, CalculateHeight(message, actions));
+        Size = new Size(400, CalculateHeight(message, actions, image));
         BackColor = Color.FromArgb(22, 33, 62);
 
         // Region for rounded corners (no P/Invoke needed — .NET can do this)
@@ -160,19 +195,21 @@ public class NotificationToast : Form
 
         BuildContent(title, message, actions, accentOverride ?? Color.FromArgb(66, 133, 244));
 
-        _autoCloseTimer = new System.Windows.Forms.Timer { Interval = 8000 };
+        _autoCloseTimer = new System.Windows.Forms.Timer { Interval = image != null ? 12000 : 8000 };
         _autoCloseTimer.Tick += (s, e) => { _autoCloseTimer.Stop(); Close(); };
         _autoCloseTimer.Start();
 
         Load += (s, e) => PositionNotification();
     }
 
-    private int CalculateHeight(string message, List<NotificationAction>? actions)
+    private int CalculateHeight(string message, List<NotificationAction>? actions,
+        NotificationImageLoader.ImageResult? image)
     {
         var lines = Math.Max(1, message.Length / 45 + 1);
         var h = 60 + lines * 20;
         if (actions != null && actions.Count > 0) h += 50;
-        return Math.Max(100, Math.Min(h, 300));
+        if (image != null && image.LocalPath != null) h += 200; // image preview block
+        return Math.Max(100, Math.Min(h, 500));
     }
 
     private void BuildContent(string title, string message, List<NotificationAction>? actions, Color accentColor)
@@ -214,6 +251,67 @@ public class NotificationToast : Form
         };
 
         Controls.AddRange(new Control[] { accentBar, titleLabel, closeBtn, msgLabel, timeLabel });
+
+        // Image preview (companion-style camera snapshot etc.)
+        if (_image != null && _image.LocalPath != null && File.Exists(_image.LocalPath))
+        {
+            try
+            {
+                var pic = new PictureBox
+                {
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Location = new Point(16, msgLabel.Bottom + 8),
+                    MaximumSize = new Size(368, 190),
+                    BackColor = Color.FromArgb(12, 20, 38),
+                    Cursor = Cursors.Hand,
+                    Tag = _image.LocalPath
+                };
+                using (var stream = new FileStream(_image.LocalPath, FileMode.Open, FileAccess.Read))
+                    pic.Image = Image.FromStream(stream);
+                // Click opens full-size viewer
+                pic.Click += (s, e) =>
+                {
+                    try
+                    {
+                        var path = (string)((PictureBox)s!).Tag!;
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = path,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception ex) { Console.WriteLine($"[Notification] Image open failed: {ex.Message}"); }
+                };
+                Controls.Add(pic);
+            }
+            catch (Exception ex)
+            {
+                // No silent fallback: load error gets a visible hint in the toast
+                var hint = new Label
+                {
+                    Text = "[Bild konnte nicht geladen werden: " + (_image.Error ?? "unbekannt") + "]",
+                    Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                    ForeColor = Color.FromArgb(220, 130, 100),
+                    Location = new Point(16, msgLabel.Bottom + 8),
+                    MaximumSize = new Size(360, 0), AutoSize = true
+                };
+                Controls.Add(hint);
+                Console.WriteLine($"[Notification] Image render failed: {ex.Message}");
+            }
+        }
+        else if (_image != null && _image.LocalPath == null)
+        {
+            // Download failed: visible hint, not a silent drop (Sir-Regel: kein stiller Fallback)
+            var hint = new Label
+            {
+                Text = "[Bild konnte nicht geladen werden" + (_image.Error != null ? ": " + _image.Error : "") + "]",
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = Color.FromArgb(220, 130, 100),
+                Location = new Point(16, msgLabel.Bottom + 8),
+                MaximumSize = new Size(360, 0), AutoSize = true
+            };
+            Controls.Add(hint);
+        }
 
         // Action buttons
         if (actions != null && actions.Count > 0)
