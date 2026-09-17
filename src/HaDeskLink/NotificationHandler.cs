@@ -101,9 +101,12 @@ public static class NotificationHandler
         try
         {
             var config = Config.Load();
-            var token = Environment.GetEnvironmentVariable("HA_TOKEN")
-                     ?? Environment.GetEnvironmentVariable("HASS_TOKEN")
-                     ?? string.Empty;
+            // Token: encrypted config preferred (DPAPI), falls back to env vars
+            var token = string.IsNullOrEmpty(config.HaToken)
+                     ? Environment.GetEnvironmentVariable("HA_TOKEN")
+                       ?? Environment.GetEnvironmentVariable("HASS_TOKEN")
+                       ?? string.Empty
+                     : config.HaToken;
             var result = NotificationImageLoader.Load(imageUrl, config.HaUrl, token);
             if (result.LocalPath != null)
                 return result;
