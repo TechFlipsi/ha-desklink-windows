@@ -3,7 +3,7 @@
 
 > **What is HA DeskLink?** A free, open-source desktop application (GPL-3.0) that connects a computer to a Home Assistant instance in both directions: smart-home sensor values (temperatures, energy, locks, motion) shown live in the taskbar/tray, and the computer's own status (CPU, RAM, disk, uptime) pushed into Home Assistant as sensor entities. Entity controls and toast notifications included, optional embedded WebView dashboard. Fully local, no browser, no cloud.
 
-🌐 **[Project homepage & downloads](https://techflipsi.github.io/ha-desklink/)**
+🌐 **[Project homepage & downloads](https://techflipsi.kirchweger.de/projekte/hadesklink.html)**
 
 [![Build](https://img.shields.io/github/actions/workflow/status/TechFlipsi/ha-desklink-windows/build.yml?branch=main&label=Build)](https://github.com/TechFlipsi/ha-desklink-windows/actions)
 [![Version](https://img.shields.io/github/v/release/TechFlipsi/ha-desklink-windows?label=Version)](https://github.com/TechFlipsi/ha-desklink-windows/releases/latest)
