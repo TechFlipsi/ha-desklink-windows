@@ -1,4 +1,15 @@
-## v5.0.5 (2026-09-10)
+# Changelog
+
+## [v5.0.6] - 2026-09-17
+
+### Added
+- **Notification image support**: HA companion-style `image` key in `notify.mobile_app_ha_desklink` — camera snapshots (`/api/camera_proxy/camera.x`), media paths (`/media/local/...`) and absolute URLs are now rendered as an image preview inside the desktop toast. Click the image to open it full size.
+- Failed image downloads show a visible hint in the toast (no silent fallback).
+
+### Changed
+- Toast auto-close extended to 12 s when an image is shown.
+
+## [v5.0.5] - 2026-09-10
 
 ### 🎵 Music Assistant Integration (neu)
 - **MA voll nativ in der App** – Music Assistant direkt in HA DeskLink steuern, ohne die MA-Web-UI: Suche über die komplette Bibliothek (Spotify, YouTube Music, TuneIn, lokale Dateien), Warteschlange anzeigen und umsortieren, Play/Pause/Next/Previous, Lautstärke, Shuffle/Repeat
