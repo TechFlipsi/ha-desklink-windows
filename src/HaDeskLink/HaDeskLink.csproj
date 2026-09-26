@@ -6,8 +6,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <AssemblyName>HA_DeskLink</AssemblyName>
+    <!-- SSOT: Version kommt aus der VERSION-Datei im Repo-Root (gleiche Quelle wie CI + App-Laufzeit) -->
+    <Version Condition="Exists('$(MSBuildThisFileDirectory)..\..\VERSION')">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\VERSION').Trim())</Version>
     <RootNamespace>HaDeskLink</RootNamespace>
-    <Version>5.0.6</Version>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>

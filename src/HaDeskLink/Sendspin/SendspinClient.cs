@@ -648,7 +648,7 @@ public class SendspinClient : IDisposable
             {
                 ["product_name"] = "HA DeskLink",
                 ["manufacturer"] = "HA DeskLink",
-                ["software_version"] = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "5.0.5",
+                ["software_version"] = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "5.0.6",
             },
             ["player@v1_support"] = new Dictionary<string, object?>
             {
